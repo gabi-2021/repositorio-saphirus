@@ -133,3 +133,4 @@ if archivo:
                     st.error(f"Error: {resp}")
         else:
             st.error("No se encontraron productos. Revisa el formato del PDF.")
+
