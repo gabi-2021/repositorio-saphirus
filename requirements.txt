@@ -1,1 +1,4 @@
-streamlit pandas pypdf twilio
+streamlit 
+pandas 
+pypdf 
+twilio
