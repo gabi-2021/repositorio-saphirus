@@ -7,7 +7,7 @@ from twilio.rest import Client
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Repositor Saphirus", page_icon="📦", layout="centered")
-st.title("📦 Repositor Saphirus 6.0")
+st.title("📦 Repositor Saphirus 7.0 (Blindado)")
 
 # --- CREDENCIALES ---
 with st.sidebar:
@@ -37,24 +37,24 @@ def detectar_categoria(producto):
     if "HOME" in p: return "🏠 Home Spray"
     return "📦 Varios"
 
-def subir_archivo_temporal(texto_contenido):
+def subir_archivo_robusto(texto_contenido):
     """
-    Sube el texto a file.io (más estable)
+    Intenta subir a Catbox (más simple y estable).
+    Retorna URL si funciona, None si falla.
     """
     try:
-        # Preparamos el archivo
-        files = {'file': ('pedido_reposicion.txt', texto_contenido)}
-        # expires=1d significa que el link dura 1 día
-        response = requests.post('https://file.io/?expires=1d', files=files)
+        # Catbox usa multipart/form-data simple
+        files = {
+            'reqtype': (None, 'fileupload'),
+            'userhash': (None, ''),
+            'fileToUpload': ('reposicion.txt', texto_contenido)
+        }
+        response = requests.post('https://catbox.moe/user/api.php', files=files)
         
         if response.status_code == 200:
-            # File.io devuelve un JSON con el link
-            return response.json()["link"]
-        else:
-            st.error(f"Error del servidor de archivos: {response.status_code}")
-            return None
-    except Exception as e:
-        st.error(f"Error de conexión: {e}")
+            return response.text.strip() # Devuelve la URL directa
+        return None
+    except:
         return None
 
 def procesar_pdf(archivo):
@@ -66,7 +66,7 @@ def procesar_pdf(archivo):
     texto_limpio = texto_completo.replace("\n", " ")
     datos = []
 
-    # 1. Estrategia CSV
+    # Estrategia CSV
     patron_csv = r'"\s*(\d{8})\s*"\s*,\s*"\s*([-0-9,]+)\s+([^"]+)"'
     matches = re.findall(patron_csv, texto_limpio)
     
@@ -74,14 +74,13 @@ def procesar_pdf(archivo):
         for m in matches:
             datos.append({"ID": m[0], "Cantidad": m[1], "Producto": m[2]})
     else:
-        # 2. Estrategia Texto Plano
+        # Estrategia Texto Plano
         patron_libre = r'(\d{8})\s+([-0-9]+,\d{2})\s+(.*?)(?=\s\d{1,3}(?:\.\d{3})*,\d{2})'
         matches = re.findall(patron_libre, texto_limpio)
         for m in matches:
             datos.append({"ID": m[0], "Cantidad": m[1], "Producto": m[2].strip()})
 
-    if not datos:
-        return None
+    if not datos: return None
 
     df = pd.DataFrame(datos)
     
@@ -94,7 +93,6 @@ def procesar_pdf(archivo):
         return x
     df["Producto"] = df["Producto"].apply(limpiar_desc)
     
-    # Filtrar
     df = df[df["Cantidad"] > 0]
     df["Categoria"] = df["Producto"].apply(detectar_categoria)
     df_final = df.groupby(["Categoria", "Producto"], as_index=False)["Cantidad"].sum()
@@ -119,7 +117,8 @@ if archivo:
                 mensaje_txt += f"[ ] {cant} x {r['Producto']}\n"
         
         total = len(df_res)
-        st.success(f"✅ {total} artículos detectados.")
+        largo_texto = len(mensaje_txt)
+        st.success(f"✅ {total} artículos ({largo_texto} caracteres).")
         st.text_area("Vista previa:", mensaje_txt, height=200)
         
         if st.button("🚀 Enviar a WhatsApp", type="primary"):
@@ -128,35 +127,55 @@ if archivo:
                 st.stop()
                 
             client = Client(SID, TOK)
-            largo = len(mensaje_txt)
+            enviado = False
             
-            with st.spinner("Enviando..."):
-                try:
-                    # Si es corto, mandar texto
-                    if largo < 1500:
+            with st.status("Enviando...", expanded=True) as status:
+                
+                # OPCIÓN 1: TEXTO CORTO
+                if largo_texto < 1500:
+                    status.write("Mensaje corto: Enviando directo...")
+                    try:
                         client.messages.create(body=mensaje_txt, from_=FROM, to=TO)
-                        st.balloons()
-                        st.success("✅ Mensaje enviado.")
+                        enviado = True
+                    except Exception as e:
+                        st.error(f"Error Twilio: {e}")
+
+                # OPCIÓN 2: TEXTO LARGO (Intento Archivo)
+                else:
+                    status.write("Mensaje largo: Intentando generar archivo...")
+                    link = subir_archivo_robusto(mensaje_txt)
                     
-                    # Si es largo, mandar archivo
-                    else:
-                        st.info("Generando archivo temporal...")
-                        link = subir_archivo_temporal(mensaje_txt)
-                        
-                        if link:
+                    if link:
+                        status.write("✅ Archivo generado. Enviando link...")
+                        try:
                             client.messages.create(
-                                body=f"📄 *Lista Completa ({total} items)*\nDescarga el archivo aquí:",
+                                body=f"📄 *Lista Completa ({total} items)*\nDescarga aquí: {link}",
                                 from_=FROM,
-                                to=TO,
-                                media_url=[link]
+                                to=TO
                             )
-                            st.balloons()
-                            st.success("✅ Archivo enviado a WhatsApp.")
-                        else:
-                            st.error("No se pudo generar el enlace. Intenta de nuevo.")
-                            
-                except Exception as e:
-                    st.error(f"Error Twilio: {e}")
+                            enviado = True
+                        except Exception as e:
+                            st.error(f"Error Twilio: {e}")
+                    
+                    # OPCIÓN 3: FALLBACK (Cortar en pedazos)
+                    else:
+                        status.write("⚠️ Falló subida de archivo. Activando Plan B: Envío fraccionado...")
+                        try:
+                            # Cortar en trozos de 1500 chars
+                            trozos = [mensaje_txt[i:i+1500] for i in range(0, len(mensaje_txt), 1500)]
+                            for i, trozo in enumerate(trozos):
+                                client.messages.create(
+                                    body=f"Parte {i+1}/{len(trozos)}:\n{trozo}",
+                                    from_=FROM,
+                                    to=TO
+                                )
+                            enviado = True
+                        except Exception as e:
+                            st.error(f"Error Plan B: {e}")
+
+            if enviado:
+                st.balloons()
+                st.success("✅ ¡Información enviada con éxito!")
 
     else:
-        st.error("No se pudieron leer datos.")
+        st.error("No se pudieron leer datos del PDF.")
