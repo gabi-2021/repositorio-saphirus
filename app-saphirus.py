@@ -57,7 +57,7 @@ def procesar_pdf(archivo_pdf):
 
     # 3. Regex (El Ojo Digital)
     # Busca: ID(8 digitos) -> Cantidad -> Descripción
-    patron = r'"\d{8}","([-0-9,]+)\s+([^"]+)"'
+    patron = r'"\s*\d+\s*"\s*,\s*"\s*([-0-9,]+)\s+([^"]+)"'
     coincidencias = re.findall(patron, texto_limpio)
 
     if not coincidencias:
@@ -133,4 +133,5 @@ if archivo:
                     st.error(f"Error: {resp}")
         else:
             st.error("No se encontraron productos. Revisa el formato del PDF.")
+
 
