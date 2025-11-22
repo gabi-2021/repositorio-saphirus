@@ -1,14 +1,16 @@
 import streamlit as st
 import pandas as pd
 import re
+import requests
 from pypdf import PdfReader
 from twilio.rest import Client
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Repositor Saphirus", page_icon="📦", layout="centered")
-st.title("📦 Repositor Saphirus 4.0")
+st.title("📦 Repositor Saphirus 5.0")
+st.caption("Versión con envío de archivo .txt automático")
 
-# --- CREDENCIALES ---
+# --- CREDENCIALES TWILIO ---
 with st.sidebar:
     st.header("🔐 Twilio")
     try:
@@ -21,9 +23,10 @@ with st.sidebar:
         st.warning("Faltan secrets")
         SID = st.text_input("SID", type="password")
         TOK = st.text_input("Token", type="password")
-        FROM = st.text_input("From")
-        TO = st.text_input("To")
+        FROM = st.text_input("From (whatsapp:+...)")
+        TO = st.text_input("To (whatsapp:+...)")
 
+# --- FUNCIONES AUXILIARES ---
 def detectar_categoria(producto):
     p = producto.upper()
     if "TEXTIL" in p: return "👕 Textiles"
@@ -35,114 +38,136 @@ def detectar_categoria(producto):
     if "HOME" in p: return "🏠 Home Spray"
     return "📦 Varios"
 
+def subir_archivo_temporal(texto_contenido):
+    """
+    Sube el texto a transfer.sh y devuelve el link de descarga.
+    Esto permite enviar archivos por WhatsApp sin tener servidor propio.
+    """
+    try:
+        # Creamos el archivo en memoria para enviarlo
+        files = {'file': ('pedido_reposicion.txt', texto_contenido)}
+        response = requests.put('https://transfer.sh/pedido_reposicion.txt', files=files)
+        if response.status_code == 200:
+            return response.text.strip() # Retorna la URL
+        else:
+            return None
+    except:
+        return None
+
+# --- LÓGICA DE PROCESAMIENTO ---
 def procesar_pdf(archivo):
     reader = PdfReader(archivo)
     texto_completo = ""
     for page in reader.pages:
         texto_completo += page.extract_text() + "\n"
     
-    # Limpieza básica: quitar saltos de línea
     texto_limpio = texto_completo.replace("\n", " ")
-    
     datos = []
 
-    # --- ESTRATEGIA 1: Formato CSV con Comillas (El original) ---
-    # Busca: "36200035","2,00...
+    # 1. Estrategia CSV (con comillas)
     patron_csv = r'"\s*(\d{8})\s*"\s*,\s*"\s*([-0-9,]+)\s+([^"]+)"'
     matches = re.findall(patron_csv, texto_limpio)
     
     if matches:
-        st.info("Modo: CSV Estricto detectado")
         for m in matches:
             datos.append({"ID": m[0], "Cantidad": m[1], "Producto": m[2]})
-            
     else:
-        # --- ESTRATEGIA 2: Modo Rescate (Sin comillas) ---
-        # Basado en tu diagnóstico: ID  CANT  DESCRIPCION  PRECIO
-        # Explicación Regex:
-        # (\d{8})           -> Captura 8 digitos (ID)
-        # \s+               -> Espacios
-        # ([-0-9]+,\d{2})   -> Captura Cantidad (ej: 2,00 o -1,00)
-        # \s+               -> Espacios
-        # (.*?)             -> Captura Descripción (mínimo posible)
-        # (?=\s\d{1,3}\.)   -> PARE cuando vea el Precio (ej: 5.050,00)
-        
-        st.warning("Modo: Texto Plano (Sin comillas) activado")
+        # 2. Estrategia Texto Plano (Rescate para tu PDF específico)
+        # Busca ID -> Espacios -> Cantidad -> Descripción -> Hasta encontrar Precio
         patron_libre = r'(\d{8})\s+([-0-9]+,\d{2})\s+(.*?)(?=\s\d{1,3}(?:\.\d{3})*,\d{2})'
         matches = re.findall(patron_libre, texto_limpio)
-        
         for m in matches:
             datos.append({"ID": m[0], "Cantidad": m[1], "Producto": m[2].strip()})
 
     if not datos:
         return None, texto_limpio
 
-    # Procesar datos
     df = pd.DataFrame(datos)
     
-    # Limpiar números
-    def clean_num(x):
-        try: return float(x.replace(",", "."))
-        except: return 0.0
-        
-    df["Cantidad"] = df["Cantidad"].apply(clean_num)
+    # Limpiezas
+    df["Cantidad"] = df["Cantidad"].apply(lambda x: float(x.replace(",", ".")) if isinstance(x, str) else x)
     
-    # Limpiar descripción (a veces se cuela el ID repetido o guiones)
-    def clean_desc(x):
+    def limpiar_desc(x):
         x = x.strip()
-        # Quitar ID si se coló al principio
-        x = re.sub(r'^\d{8}\s*', '', x)
-        # Quitar guiones al inicio
-        x = re.sub(r'^[-–]\s*', '', x)
+        x = re.sub(r'^\d{8}\s*', '', x) # Quitar ID repetido al inicio
         return x
-
-    df["Producto"] = df["Producto"].apply(clean_desc)
+    df["Producto"] = df["Producto"].apply(limpiar_desc)
     
-    # Filtrar positivos y categorizar
+    # Filtrar y Agrupar
     df = df[df["Cantidad"] > 0]
     df["Categoria"] = df["Producto"].apply(detectar_categoria)
-    
-    # Agrupar
     df_final = df.groupby(["Categoria", "Producto"], as_index=False)["Cantidad"].sum()
     
     return df_final, texto_limpio
 
-# --- INTERFAZ ---
+# --- INTERFAZ PRINCIPAL ---
 archivo = st.file_uploader("Subir PDF", type="pdf")
 
 if archivo:
     df_res, debug = procesar_pdf(archivo)
     
     if df_res is not None and not df_res.empty:
-        st.success(f"✅ {len(df_res)} Productos encontrados")
-        
-        # Crear mensaje
-        mensaje = "📋 *REPOSICIÓN*\n"
+        # Generar el Texto del Mensaje
+        mensaje_txt = "📋 *LISTA DE REPOSICIÓN*\n"
         cats = df_res["Categoria"].unique()
         for c in cats:
-            mensaje += f"\n*{c}*\n"
+            mensaje_txt += f"\n== {c.upper()} ==\n" # Formato texto plano
             sub = df_res[df_res["Categoria"]==c]
             for _, r in sub.iterrows():
                 cant = int(r['Cantidad']) if r['Cantidad'].is_integer() else r['Cantidad']
-                mensaje += f"▫️ {cant} x {r['Producto']}\n"
-
-        st.text_area("Mensaje:", mensaje, height=200)
+                mensaje_txt += f"[ ] {cant} x {r['Producto']}\n"
         
-        if st.button("Enviar WhatsApp"):
-            if SID and TOK:
+        total_items = len(df_res)
+        st.success(f"✅ {total_items} artículos detectados.")
+        
+        # Mostrar vista previa
+        st.text_area("Vista previa:", mensaje_txt, height=200)
+        
+        # Botón de Envío Inteligente
+        if st.button("🚀 Enviar a WhatsApp", type="primary"):
+            if not SID or not TOK:
+                st.error("Faltan credenciales de Twilio")
+                st.stop()
+                
+            client = Client(SID, TOK)
+            largo = len(mensaje_txt)
+            
+            with st.spinner(f"Analizando tamaño ({largo} caracteres)..."):
                 try:
-                    cli = Client(SID, TOK)
-                    # Cortar si es largo
-                    msgs = [mensaje[i:i+1500] for i in range(0, len(mensaje), 1500)]
-                    for m in msgs:
-                        cli.messages.create(body=m, from_=FROM, to=TO)
-                    st.balloons()
-                    st.success("Enviado!")
+                    # CASO 1: Mensaje Corto (Texto directo)
+                    if largo < 1550:
+                        client.messages.create(
+                            body=mensaje_txt,
+                            from_=FROM,
+                            to=TO
+                        )
+                        st.balloons()
+                        st.success("✅ Lista enviada como mensaje de texto.")
+                    
+                    # CASO 2: Mensaje Largo (Archivo .txt)
+                    else:
+                        st.info("⚠️ La lista es muy larga para un solo mensaje. Generando archivo...")
+                        
+                        # 1. Subir archivo a transfer.sh
+                        link_archivo = subir_archivo_temporal(mensaje_txt)
+                        
+                        if link_archivo:
+                            # 2. Enviar link como archivo multimedia en WhatsApp
+                            client.messages.create(
+                                body=f"📄 *Lista de Reposición Completa*\nContiene {total_items} artículos.\nAbre el archivo adjunto.",
+                                media_url=[link_archivo],
+                                from_=FROM,
+                                to=TO
+                            )
+                            st.balloons()
+                            st.success("✅ Archivo .txt enviado a WhatsApp.")
+                        else:
+                            st.error("Error generando el enlace del archivo. Intenta de nuevo.")
+                            
                 except Exception as e:
-                    st.error(f"Error Twilio: {e}")
-            else:
-                st.error("Faltan credenciales")
+                    st.error(f"Error en Twilio: {str(e)}")
+
     else:
-        st.error("No se pudo leer. Verifica Diagnóstico.")
-        with st.expander("Ver Diagnóstico"):
+        st.error("No se pudo leer el PDF.")
+        with st.expander("Ver detalles técnicos"):
             st.write(debug[:1000])
