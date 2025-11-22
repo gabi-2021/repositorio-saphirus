@@ -7,10 +7,9 @@ from twilio.rest import Client
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Repositor Saphirus", page_icon="📦", layout="centered")
-st.title("📦 Repositor Saphirus 5.0")
-st.caption("Versión con envío de archivo .txt automático")
+st.title("📦 Repositor Saphirus 6.0")
 
-# --- CREDENCIALES TWILIO ---
+# --- CREDENCIALES ---
 with st.sidebar:
     st.header("🔐 Twilio")
     try:
@@ -23,10 +22,10 @@ with st.sidebar:
         st.warning("Faltan secrets")
         SID = st.text_input("SID", type="password")
         TOK = st.text_input("Token", type="password")
-        FROM = st.text_input("From (whatsapp:+...)")
-        TO = st.text_input("To (whatsapp:+...)")
+        FROM = st.text_input("From")
+        TO = st.text_input("To")
 
-# --- FUNCIONES AUXILIARES ---
+# --- FUNCIONES ---
 def detectar_categoria(producto):
     p = producto.upper()
     if "TEXTIL" in p: return "👕 Textiles"
@@ -40,21 +39,24 @@ def detectar_categoria(producto):
 
 def subir_archivo_temporal(texto_contenido):
     """
-    Sube el texto a transfer.sh y devuelve el link de descarga.
-    Esto permite enviar archivos por WhatsApp sin tener servidor propio.
+    Sube el texto a file.io (más estable)
     """
     try:
-        # Creamos el archivo en memoria para enviarlo
+        # Preparamos el archivo
         files = {'file': ('pedido_reposicion.txt', texto_contenido)}
-        response = requests.put('https://transfer.sh/pedido_reposicion.txt', files=files)
+        # expires=1d significa que el link dura 1 día
+        response = requests.post('https://file.io/?expires=1d', files=files)
+        
         if response.status_code == 200:
-            return response.text.strip() # Retorna la URL
+            # File.io devuelve un JSON con el link
+            return response.json()["link"]
         else:
+            st.error(f"Error del servidor de archivos: {response.status_code}")
             return None
-    except:
+    except Exception as e:
+        st.error(f"Error de conexión: {e}")
         return None
 
-# --- LÓGICA DE PROCESAMIENTO ---
 def procesar_pdf(archivo):
     reader = PdfReader(archivo)
     texto_completo = ""
@@ -64,7 +66,7 @@ def procesar_pdf(archivo):
     texto_limpio = texto_completo.replace("\n", " ")
     datos = []
 
-    # 1. Estrategia CSV (con comillas)
+    # 1. Estrategia CSV
     patron_csv = r'"\s*(\d{8})\s*"\s*,\s*"\s*([-0-9,]+)\s+([^"]+)"'
     matches = re.findall(patron_csv, texto_limpio)
     
@@ -72,15 +74,14 @@ def procesar_pdf(archivo):
         for m in matches:
             datos.append({"ID": m[0], "Cantidad": m[1], "Producto": m[2]})
     else:
-        # 2. Estrategia Texto Plano (Rescate para tu PDF específico)
-        # Busca ID -> Espacios -> Cantidad -> Descripción -> Hasta encontrar Precio
+        # 2. Estrategia Texto Plano
         patron_libre = r'(\d{8})\s+([-0-9]+,\d{2})\s+(.*?)(?=\s\d{1,3}(?:\.\d{3})*,\d{2})'
         matches = re.findall(patron_libre, texto_limpio)
         for m in matches:
             datos.append({"ID": m[0], "Cantidad": m[1], "Producto": m[2].strip()})
 
     if not datos:
-        return None, texto_limpio
+        return None
 
     df = pd.DataFrame(datos)
     
@@ -89,85 +90,73 @@ def procesar_pdf(archivo):
     
     def limpiar_desc(x):
         x = x.strip()
-        x = re.sub(r'^\d{8}\s*', '', x) # Quitar ID repetido al inicio
+        x = re.sub(r'^\d{8}\s*', '', x)
         return x
     df["Producto"] = df["Producto"].apply(limpiar_desc)
     
-    # Filtrar y Agrupar
+    # Filtrar
     df = df[df["Cantidad"] > 0]
     df["Categoria"] = df["Producto"].apply(detectar_categoria)
     df_final = df.groupby(["Categoria", "Producto"], as_index=False)["Cantidad"].sum()
     
-    return df_final, texto_limpio
+    return df_final
 
-# --- INTERFAZ PRINCIPAL ---
+# --- INTERFAZ ---
 archivo = st.file_uploader("Subir PDF", type="pdf")
 
 if archivo:
-    df_res, debug = procesar_pdf(archivo)
+    df_res = procesar_pdf(archivo)
     
     if df_res is not None and not df_res.empty:
-        # Generar el Texto del Mensaje
+        # Generar Texto
         mensaje_txt = "📋 *LISTA DE REPOSICIÓN*\n"
         cats = df_res["Categoria"].unique()
         for c in cats:
-            mensaje_txt += f"\n== {c.upper()} ==\n" # Formato texto plano
+            mensaje_txt += f"\n== {c.upper()} ==\n"
             sub = df_res[df_res["Categoria"]==c]
             for _, r in sub.iterrows():
                 cant = int(r['Cantidad']) if r['Cantidad'].is_integer() else r['Cantidad']
                 mensaje_txt += f"[ ] {cant} x {r['Producto']}\n"
         
-        total_items = len(df_res)
-        st.success(f"✅ {total_items} artículos detectados.")
-        
-        # Mostrar vista previa
+        total = len(df_res)
+        st.success(f"✅ {total} artículos detectados.")
         st.text_area("Vista previa:", mensaje_txt, height=200)
         
-        # Botón de Envío Inteligente
         if st.button("🚀 Enviar a WhatsApp", type="primary"):
             if not SID or not TOK:
-                st.error("Faltan credenciales de Twilio")
+                st.error("Faltan credenciales")
                 st.stop()
                 
             client = Client(SID, TOK)
             largo = len(mensaje_txt)
             
-            with st.spinner(f"Analizando tamaño ({largo} caracteres)..."):
+            with st.spinner("Enviando..."):
                 try:
-                    # CASO 1: Mensaje Corto (Texto directo)
-                    if largo < 1550:
-                        client.messages.create(
-                            body=mensaje_txt,
-                            from_=FROM,
-                            to=TO
-                        )
+                    # Si es corto, mandar texto
+                    if largo < 1500:
+                        client.messages.create(body=mensaje_txt, from_=FROM, to=TO)
                         st.balloons()
-                        st.success("✅ Lista enviada como mensaje de texto.")
+                        st.success("✅ Mensaje enviado.")
                     
-                    # CASO 2: Mensaje Largo (Archivo .txt)
+                    # Si es largo, mandar archivo
                     else:
-                        st.info("⚠️ La lista es muy larga para un solo mensaje. Generando archivo...")
+                        st.info("Generando archivo temporal...")
+                        link = subir_archivo_temporal(mensaje_txt)
                         
-                        # 1. Subir archivo a transfer.sh
-                        link_archivo = subir_archivo_temporal(mensaje_txt)
-                        
-                        if link_archivo:
-                            # 2. Enviar link como archivo multimedia en WhatsApp
+                        if link:
                             client.messages.create(
-                                body=f"📄 *Lista de Reposición Completa*\nContiene {total_items} artículos.\nAbre el archivo adjunto.",
-                                media_url=[link_archivo],
+                                body=f"📄 *Lista Completa ({total} items)*\nDescarga el archivo aquí:",
                                 from_=FROM,
-                                to=TO
+                                to=TO,
+                                media_url=[link]
                             )
                             st.balloons()
-                            st.success("✅ Archivo .txt enviado a WhatsApp.")
+                            st.success("✅ Archivo enviado a WhatsApp.")
                         else:
-                            st.error("Error generando el enlace del archivo. Intenta de nuevo.")
+                            st.error("No se pudo generar el enlace. Intenta de nuevo.")
                             
                 except Exception as e:
-                    st.error(f"Error en Twilio: {str(e)}")
+                    st.error(f"Error Twilio: {e}")
 
     else:
-        st.error("No se pudo leer el PDF.")
-        with st.expander("Ver detalles técnicos"):
-            st.write(debug[:1000])
+        st.error("No se pudieron leer datos.")
