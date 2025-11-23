@@ -6,8 +6,8 @@ from pypdf import PdfReader
 from twilio.rest import Client
 
 # --- CONFIGURACIÓN ---
-st.set_page_config(page_title="Repositor Saphirus", page_icon="📦", layout="centered")
-st.title("📦 Repositor Saphirus 7.0 (Blindado)")
+st.set_page_config(page_title="Repositor Saphirus", page_icon="✨", layout="centered")
+st.title("✨ Repositor Saphirus 8.0")
 
 # --- CREDENCIALES ---
 with st.sidebar:
@@ -25,9 +25,12 @@ with st.sidebar:
         FROM = st.text_input("From")
         TO = st.text_input("To")
 
-# --- FUNCIONES ---
+# --- LÓGICA DE TEXTO Y CATEGORÍAS ---
 def detectar_categoria(producto):
     p = producto.upper()
+    # Categorías Específicas
+    if "PREMIUM" in p and ("DIFUSOR" in p or "VARILLA" in p): return "💎 Difusores Premium"
+    if "AMBAR" in p: return "🔸 Línea Ambar"
     if "TEXTIL" in p: return "👕 Textiles"
     if "AEROSOL" in p: return "💨 Aerosoles"
     if "DIFUSOR" in p or "VARILLA" in p: return "🎍 Difusores"
@@ -37,22 +40,40 @@ def detectar_categoria(producto):
     if "HOME" in p: return "🏠 Home Spray"
     return "📦 Varios"
 
+def limpiar_nombre_visual(nombre):
+    """
+    Elimina los prefijos repetitivos para dejar la lista limpia.
+    Ej: 'DIFUSOR AROMATICO - INVICTO' -> 'INVICTO'
+    """
+    # Lista de frases a borrar (Regex insensible a mayúsculas)
+    patrones = [
+        r"^DIFUSOR AROMATICO\s*[-–]?\s*",
+        r"^DIFUSOR PREMIUM\s*[-–]?\s*",
+        r"^DIFUSOR\s*[-–]?\s*",
+        r"^AROMATIZADOR TEXTIL 250 ML\s*[-–]?\s*",
+        r"^AROMATIZADOR TEXTIL\s*[-–]?\s*",
+        r"^AEROSOL\s*[-–]?\s*",
+        r"^HOME SPRAY\s*[-–]?\s*",
+        r"^SAHUMERIO\s*[-–]?\s*",
+        r"^VELAS SAPHIRUS X \d+ UNIDADES\s*[-–]?\s*"
+    ]
+    
+    nombre_limpio = nombre
+    for pat in patrones:
+        nombre_limpio = re.sub(pat, "", nombre_limpio, flags=re.IGNORECASE)
+    
+    return nombre_limpio.strip()
+
 def subir_archivo_robusto(texto_contenido):
-    """
-    Intenta subir a Catbox (más simple y estable).
-    Retorna URL si funciona, None si falla.
-    """
     try:
-        # Catbox usa multipart/form-data simple
         files = {
             'reqtype': (None, 'fileupload'),
             'userhash': (None, ''),
             'fileToUpload': ('reposicion.txt', texto_contenido)
         }
         response = requests.post('https://catbox.moe/user/api.php', files=files)
-        
         if response.status_code == 200:
-            return response.text.strip() # Devuelve la URL directa
+            return response.text.strip()
         return None
     except:
         return None
@@ -84,17 +105,24 @@ def procesar_pdf(archivo):
 
     df = pd.DataFrame(datos)
     
-    # Limpiezas
+    # Limpieza Numérica
     df["Cantidad"] = df["Cantidad"].apply(lambda x: float(x.replace(",", ".")) if isinstance(x, str) else x)
     
-    def limpiar_desc(x):
-        x = x.strip()
-        x = re.sub(r'^\d{8}\s*', '', x)
-        return x
-    df["Producto"] = df["Producto"].apply(limpiar_desc)
+    # Limpieza ID fantasma
+    def quitar_id(x):
+        return re.sub(r'^\d{8}\s*', '', x.strip())
+    df["Producto"] = df["Producto"].apply(quitar_id)
     
+    # Filtrar > 0
     df = df[df["Cantidad"] > 0]
+    
+    # 1. Asignar Categoría
     df["Categoria"] = df["Producto"].apply(detectar_categoria)
+    
+    # 2. Limpiar Nombre (Para que quede bonito EN la lista)
+    df["Producto"] = df["Producto"].apply(limpiar_nombre_visual)
+    
+    # 3. Agrupar y Sumar
     df_final = df.groupby(["Categoria", "Producto"], as_index=False)["Cantidad"].sum()
     
     return df_final
@@ -106,20 +134,25 @@ if archivo:
     df_res = procesar_pdf(archivo)
     
     if df_res is not None and not df_res.empty:
-        # Generar Texto
+        # Generar Texto Limpio
         mensaje_txt = "📋 *LISTA DE REPOSICIÓN*\n"
-        cats = df_res["Categoria"].unique()
+        cats = sorted(df_res["Categoria"].unique()) # Ordenar alfabéticamente
+        
         for c in cats:
             mensaje_txt += f"\n== {c.upper()} ==\n"
             sub = df_res[df_res["Categoria"]==c]
+            # Ordenar productos alfabéticamente dentro de la categoría
+            sub = sub.sort_values("Producto")
+            
             for _, r in sub.iterrows():
                 cant = int(r['Cantidad']) if r['Cantidad'].is_integer() else r['Cantidad']
-                mensaje_txt += f"[ ] {cant} x {r['Producto']}\n"
+                # FORMATO LIMPIO: SIN CORCHETES
+                mensaje_txt += f"{cant} x {r['Producto']}\n"
         
         total = len(df_res)
         largo_texto = len(mensaje_txt)
-        st.success(f"✅ {total} artículos ({largo_texto} caracteres).")
-        st.text_area("Vista previa:", mensaje_txt, height=200)
+        st.success(f"✅ {total} artículos limpios.")
+        st.text_area("Vista previa:", mensaje_txt, height=400)
         
         if st.button("🚀 Enviar a WhatsApp", type="primary"):
             if not SID or not TOK:
@@ -129,53 +162,33 @@ if archivo:
             client = Client(SID, TOK)
             enviado = False
             
-            with st.status("Enviando...", expanded=True) as status:
-                
-                # OPCIÓN 1: TEXTO CORTO
+            with st.status("Procesando envío...", expanded=True) as status:
                 if largo_texto < 1500:
-                    status.write("Mensaje corto: Enviando directo...")
                     try:
                         client.messages.create(body=mensaje_txt, from_=FROM, to=TO)
                         enviado = True
-                    except Exception as e:
-                        st.error(f"Error Twilio: {e}")
-
-                # OPCIÓN 2: TEXTO LARGO (Intento Archivo)
+                    except Exception as e: st.error(f"Error: {e}")
                 else:
-                    status.write("Mensaje largo: Intentando generar archivo...")
+                    status.write("Generando archivo...")
                     link = subir_archivo_robusto(mensaje_txt)
-                    
                     if link:
-                        status.write("✅ Archivo generado. Enviando link...")
                         try:
                             client.messages.create(
-                                body=f"📄 *Lista Completa ({total} items)*\nDescarga aquí: {link}",
-                                from_=FROM,
-                                to=TO
+                                body=f"📄 *Lista Simplificada*\nDescarga: {link}",
+                                from_=FROM, to=TO
                             )
                             enviado = True
-                        except Exception as e:
-                            st.error(f"Error Twilio: {e}")
-                    
-                    # OPCIÓN 3: FALLBACK (Cortar en pedazos)
+                        except Exception as e: st.error(f"Error: {e}")
                     else:
-                        status.write("⚠️ Falló subida de archivo. Activando Plan B: Envío fraccionado...")
-                        try:
-                            # Cortar en trozos de 1500 chars
-                            trozos = [mensaje_txt[i:i+1500] for i in range(0, len(mensaje_txt), 1500)]
-                            for i, trozo in enumerate(trozos):
-                                client.messages.create(
-                                    body=f"Parte {i+1}/{len(trozos)}:\n{trozo}",
-                                    from_=FROM,
-                                    to=TO
-                                )
-                            enviado = True
-                        except Exception as e:
-                            st.error(f"Error Plan B: {e}")
+                        status.write("⚠️ Falló archivo, enviando por partes...")
+                        trozos = [mensaje_txt[i:i+1500] for i in range(0, len(mensaje_txt), 1500)]
+                        for t in trozos:
+                            client.messages.create(body=t, from_=FROM, to=TO)
+                        enviado = True
 
             if enviado:
                 st.balloons()
-                st.success("✅ ¡Información enviada con éxito!")
+                st.success("¡Enviado!")
 
     else:
-        st.error("No se pudieron leer datos del PDF.")
+        st.error("Error leyendo PDF.")
