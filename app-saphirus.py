@@ -7,7 +7,8 @@ from twilio.rest import Client
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Repositor Saphirus", page_icon="✨", layout="centered")
-st.title("✨ Repositor Saphirus 12.0")
+st.title("✨ Repositor Saphirus 13.0")
+st.caption("Arquitectura Modular: Limpieza específica por categoría")
 
 # --- CREDENCIALES ---
 with st.sidebar:
@@ -25,126 +26,145 @@ with st.sidebar:
         FROM = st.text_input("From")
         TO = st.text_input("To")
 
-# --- 1. CATEGORIZACIÓN (MÁS ESPECÍFICA) ---
+# --- 1. DETECCIÓN DE CATEGORÍA ---
 def detectar_categoria(producto):
     p = producto.upper()
     
-    # AMBAR
+    # AMBAR (Prioridad 1)
     if "AMBAR" in p:
         if "AEROSOL" in p: return "🔸 Aerosoles Ambar"
         if "TEXTIL" in p or "150 ML" in p: return "🔸 Textiles Ambar"
         if "SAHUMERIO" in p: return "🔸 Sahumerios Ambar"
         return "🔸 Línea Ambar Varios"
 
-    # PERFUMERÍA / MINI
+    # HOME SPRAY (Prioridad 2 - Antes que Textil normal)
+    if "HOME SPRAY" in p or "500 ML" in p or "500ML" in p: 
+        return "🏠 Home Spray"
+
+    # PERFUMERÍA
     if "MINI MILANO" in p: return "🧴 Perfume Mini Milano"
     if "PARFUM" in p or "PERFUME" in p: return "🧴 Parfum / Perfumes"
 
     # APARATOS
     if "APARATO" in p or "HORNILLO" in p or "DISPOSITIVO" in p:
-        # Excepción: Los Touch a veces se consideran aparatos, pero si quieres separarlos:
-        if "TOUCH" in p: return "🚗 Autos - Touch/Varios" 
+        if "TOUCH" in p: return "🚗 Autos - Touch/Varios"
         return "⚙️ Aparatos y Hornillos"
-
-    # HOME SPRAY
-    if "HOME SPRAY" in p or "500 ML" in p or "500ML" in p: 
-        return "🏠 Home Spray"
 
     # PREMIUM
     if "PREMIUM" in p and ("DIFUSOR" in p or "VARILLA" in p): 
         return "💎 Difusores Premium"
 
-    # SAHUMERIOS (DIVIDIDOS)
+    # CATEGORÍAS ESTÁNDAR
+    if "TEXTIL" in p: return "👕 Textiles (250ml)"
+    if "AEROSOL" in p: return "💨 Aerosoles"
+    if "DIFUSOR" in p or "VARILLA" in p: return "🎍 Difusores"
     if "SAHUMERIO" in p:
         if "HIERBAS" in p: return "🌿 Sahumerios Hierbas"
         if "HIMALAYA" in p: return "🏔️ Sahumerios Himalaya"
         return "🧘 Sahumerios Varios"
-
+    
     # AUTOS
     if "CARITAS" in p: return "😎 Autos - Caritas"
     if "RUTA" in p or "RUTA 66" in p: return "🛣️ Autos - Ruta 66"
     if "AUTO" in p or "TOUCH" in p: return "🚗 Autos - Touch/Varios"
 
-    # RESTO
-    if "TEXTIL" in p: return "👕 Textiles (250ml)"
-    if "AEROSOL" in p: return "💨 Aerosoles"
-    if "DIFUSOR" in p or "VARILLA" in p: return "🎍 Difusores"
     if "VELA" in p: return "🕯️ Velas"
     if "ACEITE" in p: return "💧 Aceites"
     if "ANTIHUMEDAD" in p: return "💧 Antihumedad"
     
     return "📦 Varios"
 
-# --- 2. LIMPIEZA DE NOMBRES ---
-def limpiar_nombre_visual(nombre):
+# --- 2. ESPECIALISTAS DE LIMPIEZA (MODULAR) ---
+
+def limpiar_general(nombre):
+    """Limpieza básica aplicable a todo si falla la específica"""
     n = nombre
-    
-    # --- REGLA ANTIHUMEDAD (Nueva) ---
-    # Transforma "ANTIHUMEDAD ANTI HUMEDAD SAPHIRUS 145 GR-684569" en "ANTIHUMEDAD 145 GR"
-    if "ANTIHUMEDAD" in n.upper():
-        # 1. Borrar la repetición y la marca
-        n = re.sub(r"ANTIHUMEDAD\s+ANTI\s+HUMEDAD\s*(SAPHIRUS)?", "ANTIHUMEDAD", n, flags=re.IGNORECASE)
-        n = re.sub(r"ANTIHUMEDAD\s+SAPHIRUS", "ANTIHUMEDAD", n, flags=re.IGNORECASE)
-        # 2. Borrar códigos al final (ej: - 684569)
-        n = re.sub(r"\s*-\s*\d+$", "", n)
-        return n.strip()
-
-    # --- REGLA PARFUM/MINI ---
-    n = re.sub(r"SAPHIRUS PARFUM", "", n, flags=re.IGNORECASE)
-    n = re.sub(r"PERFUME MINI MILANO\s*[-–]?\s*", "", n, flags=re.IGNORECASE)
-    
-    # --- REGLA APARATOS ---
-    n = re.sub(r"APARATO ANALOGICO DECO", "ANALOGICO", n, flags=re.IGNORECASE)
-    n = re.sub(r"HORNILLO CERAMICA", "HORNILLO", n, flags=re.IGNORECASE)
-
-    # --- REGLA SAHUMERIOS ---
-    n = re.sub(r"SAHUMERIO HIERBAS\s*[-–]?\s*", "", n, flags=re.IGNORECASE)
-    n = re.sub(r"SAHUMERIO HIMALAYA\s*[-–]?\s*", "", n, flags=re.IGNORECASE)
-    n = re.sub(r"SAHUMERIO\s*[-–]?\s*", "", n, flags=re.IGNORECASE)
-
-    # --- OTRAS REGLAS ---
-    n = re.sub(r"CARITAS EMOGI X 2", "", n, flags=re.IGNORECASE)
-    n = re.sub(r"RUTA 66", "", n, flags=re.IGNORECASE)
-    n = re.sub(r"AROMATIZANTE AUTO", "", n, flags=re.IGNORECASE)
-    
-    prefijos = [
-        r"^DIFUSOR AROMATICO\s*[-–]?\s*",
-        r"^DIFUSOR PREMIUM\s*[-–]?\s*",
-        r"^AROMATIZADOR TEXTIL 250 ML\s*[-–]?\s*",
-        r"^AROMATIZADOR TEXTIL MINI 60 ML\s*[-–]?\s*",
-        r"^AROMATIZADOR TEXTIL 150 ML AMBAR\s*[-–]?\s*",
-        r"^AROMATIZADOR TEXTIL\s*[-–]?\s*",
-        r"^AEROSOL\s*[-–]?\s*",
-        r"^HOME SPRAY\s*[-–]?\s*",
-        r"^VELAS SAPHIRUS\s*",
-        r"^DISPOSITIVO TOUCH\s*"
-    ]
-    for pat in prefijos:
-        n = re.sub(pat, "", n, flags=re.IGNORECASE)
-
-    sufijos = [
-        r"\s*[-–]?\s*SAPHIRUS.*$",
-        r"\s*[-–]?\s*AMBAR.*$",
-        r"\s*[-–]?\s*AROMATIZANTE TEXTIL.*$",
-        r"\s*[-–]?\s*VARILLA SAPHIRUS.*$",
-        r"\s*[-–]?\s*AROMATICO VARILLA.*$",
-        r"\s*[-–]?\s*X\s*2.*$",
-        r"\s*X\s*2$"
-    ]
-    for pat in sufijos:
-        n = re.sub(pat, "", n, flags=re.IGNORECASE)
-
+    # Borrar sufijos comunes de Saphirus
+    n = re.sub(r"\s*[-–]?\s*SAPHIRUS.*$", "", n, flags=re.IGNORECASE)
+    n = re.sub(r"\s*[-–]?\s*AMBAR.*$", "", n, flags=re.IGNORECASE)
     n = n.strip()
-    n = re.sub(r"^[-–]\s*", "", n) 
-    n = re.sub(r"\s*[-–]$", "", n) 
-    
-    if len(n) < 3:
-        backup = re.sub(r"SAPHIRUS", "", nombre, flags=re.IGNORECASE).strip()
-        backup = re.sub(r"^[-–]", "", backup).strip()
-        return backup if len(backup) > 2 else nombre
-        
+    n = re.sub(r"^[-–]\s*", "", n)
+    n = re.sub(r"\s*[-–]$", "", n)
     return n
 
+def limpiar_textil(nombre):
+    n = nombre.upper()
+    # 1. Caso Ambar infiltrado (limpieza dura)
+    n = re.sub(r"^AROMATIZADOR TEXTIL 150 ML AMBAR\s*[-–]?\s*", "", n)
+    
+    # 2. Borrar prefijos textiles estándar
+    prefijos = [
+        r"^AROMATIZADOR TEXTIL 250 ML\s*[-–]?\s*",
+        r"^AROMATIZADOR TEXTIL MINI 60 ML\s*[-–]?\s*",
+        r"^AROMATIZADOR TEXTIL\s*[-–]?\s*"
+    ]
+    for p in prefijos: n = re.sub(p, "", n)
+    
+    # 3. Intentar extracción inteligente: "FRAGANCIA - SAPHIRUS"
+    # Si termina en " - SAPHIRUS", lo quitamos.
+    # Si termina en " SAPHIRUS" (sin guion, el error que mencionaste), también.
+    n = re.sub(r"\s*[-–]?\s*SAPHIRUS.*$", "", n)
+    
+    return limpiar_general(n)
+
+def limpiar_autos(nombre):
+    n = nombre.upper()
+    # Borrar marcas de auto
+    n = re.sub(r"CARITAS EMOGI X 2", "", n)
+    n = re.sub(r"RUTA 66", "", n)
+    n = re.sub(r"AROMATIZANTE AUTO", "", n)
+    n = re.sub(r"DISPOSITIVO TOUCH", "", n)
+    n = re.sub(r"\s*X\s*2.*$", "", n) # Borrar "X 2"
+    return limpiar_general(n)
+
+def limpiar_velas(nombre):
+    n = nombre.upper()
+    # Solo borrar la marca, dejar el "X 12 UNIDADES"
+    n = re.sub(r"VELAS SAPHIRUS", "VELAS", n)
+    # Si quedó solo "VELAS", intentar dejarlo así, o limpiar marca si estorba
+    n = re.sub(r"\s*[-–]?\s*SAPHIRUS.*$", "", n)
+    return n.strip()
+
+def limpiar_antihumedad(nombre):
+    n = nombre.upper()
+    # Arreglar tartamudeo
+    n = re.sub(r"ANTIHUMEDAD ANTI HUMEDAD", "ANTIHUMEDAD", n)
+    # Borrar códigos finales
+    n = re.sub(r"\s*-\s*\d+$", "", n)
+    return limpiar_general(n)
+
+def limpiar_aerosol(nombre):
+    n = nombre.upper()
+    n = re.sub(r"^AEROSOL\s*[-–]?\s*", "", n)
+    return limpiar_general(n)
+
+def limpiar_difusor(nombre):
+    n = nombre.upper()
+    n = re.sub(r"^DIFUSOR AROMATICO\s*[-–]?\s*", "", n)
+    n = re.sub(r"^DIFUSOR PREMIUM\s*[-–]?\s*", "", n)
+    n = re.sub(r"^DIFUSOR\s*[-–]?\s*", "", n)
+    n = re.sub(r"\s*[-–]?\s*VARILLA.*$", "", n) # Borrar "VARILLA SAPHIRUS"
+    return limpiar_general(n)
+
+# --- 3. DISPATCHER (El Cerebro que elige al especialista) ---
+def limpiar_producto_por_categoria(row):
+    cat = row["Categoria"]
+    nom = row["Producto"]
+    
+    if "Textiles" in cat: return limpiar_textil(nom)
+    if "Autos" in cat: return limpiar_autos(nom)
+    if "Aerosoles" in cat: return limpiar_aerosol(nom)
+    if "Difusores" in cat: return limpiar_difusor(nom)
+    if "Velas" in cat: return limpiar_velas(nom)
+    if "Antihumedad" in cat: return limpiar_antihumedad(nom)
+    
+    # Default para el resto
+    # Limpiezas específicas globales
+    nom = re.sub(r"PERFUME MINI MILANO\s*[-–]?\s*", "", nom, flags=re.IGNORECASE)
+    nom = re.sub(r"SAPHIRUS PARFUM", "", nom, flags=re.IGNORECASE)
+    return limpiar_general(nom)
+
+# --- 4. PROCESAMIENTO PRINCIPAL ---
 def subir_archivo_robusto(texto_contenido):
     try:
         files = {
@@ -187,8 +207,20 @@ def procesar_pdf(archivo):
     
     df = df[df["Cantidad"] > 0]
     
+    # 1. ASIGNAR CATEGORÍA
     df["Categoria"] = df["Producto"].apply(detectar_categoria)
-    df["Producto"] = df["Producto"].apply(limpiar_nombre_visual)
+    
+    # 2. LIMPIEZA MODULAR (Aquí ocurre la magia)
+    # Aplicamos la función fila por fila
+    df["Producto"] = df.apply(limpiar_producto_por_categoria, axis=1)
+    
+    # 3. GUARDIA FINAL (Si quedó vacío, volver al original limpiado básico)
+    def check_vacio(row):
+        if len(row["Producto"]) < 2:
+            return limpiar_general(row["Producto"]) # Fallback suave
+        return row["Producto"]
+    
+    # 4. AGRUPAR
     df_final = df.groupby(["Categoria", "Producto"], as_index=False)["Cantidad"].sum()
     
     return df_final
