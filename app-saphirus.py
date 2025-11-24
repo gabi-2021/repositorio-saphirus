@@ -7,7 +7,7 @@ from twilio.rest import Client
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Repositor Saphirus", page_icon="✨", layout="centered")
-st.title("✨ Repositor Saphirus 9.0")
+st.title("✨ Repositor Saphirus 10.0")
 
 # --- CREDENCIALES ---
 with st.sidebar:
@@ -25,27 +25,26 @@ with st.sidebar:
         FROM = st.text_input("From")
         TO = st.text_input("To")
 
-# --- 1. CATEGORIZACIÓN AVANZADA ---
+# --- 1. CATEGORIZACIÓN (ORDEN CRÍTICO) ---
 def detectar_categoria(producto):
     p = producto.upper()
     
-    # --- LÓGICA AMBAR (Separada) ---
+    # 1. AMBAR (Prioridad máxima para separar tipos)
     if "AMBAR" in p:
         if "AEROSOL" in p: return "🔸 Aerosoles Ambar"
-        if "TEXTIL" in p: return "🔸 Textiles Ambar"
+        if "TEXTIL" in p or "150 ML" in p: return "🔸 Textiles Ambar"
         if "SAHUMERIO" in p: return "🔸 Sahumerios Ambar"
         return "🔸 Línea Ambar Varios"
 
-    # --- LÓGICA HOME SPRAY (Prioridad sobre Textil) ---
-    # Detecta 500 ML o Home Spray explícito
+    # 2. HOME SPRAY (Antes que Textil normal para no confundirse)
     if "HOME SPRAY" in p or "500 ML" in p or "500ML" in p: 
         return "🏠 Home Spray"
 
-    # --- LÓGICA PREMIUM ---
+    # 3. PREMIUM
     if "PREMIUM" in p and ("DIFUSOR" in p or "VARILLA" in p): 
         return "💎 Difusores Premium"
 
-    # --- CATEGORÍAS ESTÁNDAR ---
+    # 4. RESTO DE CATEGORÍAS
     if "TEXTIL" in p: return "👕 Textiles (250ml)"
     if "AEROSOL" in p: return "💨 Aerosoles"
     if "DIFUSOR" in p or "VARILLA" in p: return "🎍 Difusores"
@@ -56,15 +55,13 @@ def detectar_categoria(producto):
     
     return "📦 Varios"
 
-# --- 2. LIMPIEZA DE NOMBRES (LAVADORA DE TEXTO) ---
+# --- 2. LIMPIEZA DE NOMBRES ---
 def limpiar_nombre_visual(nombre):
-    """
-    Elimina prefijos y sufijos molestos para dejar solo la fragancia.
-    """
     n = nombre
     
-    # 1. Eliminar Prefijos (Lo que está al principio)
+    # Lista de Prefijos a borrar (Inicio del nombre)
     prefijos = [
+        r"^AROMATIZADOR TEXTIL 150 ML AMBAR\s*[-–]?\s*", # FIX AMBAR 150ML
         r"^DIFUSOR AROMATICO\s*[-–]?\s*",
         r"^DIFUSOR PREMIUM\s*[-–]?\s*",
         r"^DIFUSOR\s*[-–]?\s*",
@@ -76,35 +73,35 @@ def limpiar_nombre_visual(nombre):
         r"^SAHUMERIO AMBAR\s*[-–]?\s*",
         r"^SAHUMERIO\s*[-–]?\s*",
         r"^RUTA 66\s*[-–]?\s*",
-        r"^CARITAS EMOGI X 2\s*[-–]?\s*",
-        # Cuidado con VELAS: Solo borramos si sigue texto, para no borrar el nombre si es genérico
-        r"^VELAS SAPHIRUS X \d+ UNIDADES\s*[-–]\s*" 
+        r"^CARITAS EMOGI X 2\s*[-–]?\s*"
+        # Nota: Quité la regla de VELAS de aquí para que no borre el nombre entero
     ]
     for pat in prefijos:
         n = re.sub(pat, "", n, flags=re.IGNORECASE)
 
-    # 2. Eliminar Sufijos (Lo que está al final, como "- SAPHIRUS")
+    # Lista de Sufijos a borrar (Final del nombre)
     sufijos = [
-        r"\s*[-–]?\s*SAPHIRUS.*$",          # Borra " - SAPHIRUS" y todo lo que siga
-        r"\s*[-–]?\s*AMBAR.*$",             # Borra " - AMBAR" al final (ya está en la categoría)
-        r"\s*[-–]?\s*AROMATIZANTE TEXTIL\s*500\s*ML.*$", # Borra descripción técnica de Home Spray
+        r"\s*[-–]?\s*AMBAR.*$",             # Borra " - AMBAR" al final (ej: DANIEL AMBAR -> DANIEL)
+        r"\s*[-–]?\s*SAPHIRUS.*$",          # Borra " - SAPHIRUS"
+        r"\s*[-–]?\s*AROMATIZANTE TEXTIL\s*500\s*ML.*$", # FIX HOME SPRAY SUCIOS
         r"\s*[-–]?\s*AROMATIZANTE TEXTIL.*$",
-        r"\s*[-–]?\s*X\s*\d+\s*SAPHIRUS.*$", # Ej: X 2 SAPHIRUS
+        r"\s*[-–]?\s*X\s*\d+\s*SAPHIRUS.*$",
         r"\s*[-–]?\s*VARILLA SAPHIRUS.*$",
         r"\s*[-–]?\s*AROMATICO VARILLA.*$"
     ]
     for pat in sufijos:
         n = re.sub(pat, "", n, flags=re.IGNORECASE)
 
-    # 3. Limpieza final de guiones sueltos o espacios
+    # Limpieza cosmética final
     n = n.strip()
-    n = re.sub(r"^[-–]\s*", "", n) # Guión al inicio
-    n = re.sub(r"\s*[-–]$", "", n) # Guión al final
+    n = re.sub(r"^[-–]\s*", "", n) 
+    n = re.sub(r"\s*[-–]$", "", n) 
     
-    # 4. REGLA DE EMERGENCIA: Si borramos todo, devolver el original
-    # (Esto arregla el problema de las Velas que se quedaban vacías)
+    # REGLA SALVAVIDAS: Si borramos demasiado, devolver el original
     if len(n) < 2:
-        return nombre.strip()
+        # Intenta al menos quitar la palabra SAPHIRUS si es lo único que molesta
+        backup = re.sub(r"\s*SAPHIRUS.*", "", nombre, flags=re.IGNORECASE).strip()
+        return backup
         
     return n
 
@@ -131,13 +128,13 @@ def procesar_pdf(archivo):
     texto_limpio = texto_completo.replace("\n", " ")
     datos = []
 
-    # CSV
+    # CSV Strategy
     patron_csv = r'"\s*(\d{8})\s*"\s*,\s*"\s*([-0-9,]+)\s+([^"]+)"'
     matches = re.findall(patron_csv, texto_limpio)
     if matches:
         for m in matches: datos.append({"ID": m[0], "Cantidad": m[1], "Producto": m[2]})
     else:
-        # Texto Plano
+        # Text Strategy
         patron_libre = r'(\d{8})\s+([-0-9]+,\d{2})\s+(.*?)(?=\s\d{1,3}(?:\.\d{3})*,\d{2})'
         matches = re.findall(patron_libre, texto_limpio)
         for m in matches: datos.append({"ID": m[0], "Cantidad": m[1], "Producto": m[2].strip()})
@@ -151,13 +148,12 @@ def procesar_pdf(archivo):
     def limpiar_id(x): return re.sub(r'^\d{8}\s*', '', x.strip())
     df["Producto"] = df["Producto"].apply(limpiar_id)
     
-    # Filtrar
     df = df[df["Cantidad"] > 0]
     
-    # 1. CATEGORIZAR (Antes de limpiar nombre para no perder info como "500 ML")
+    # 1. CATEGORIZAR (Antes de limpiar nombre)
     df["Categoria"] = df["Producto"].apply(detectar_categoria)
     
-    # 2. LIMPIAR NOMBRE VISUAL
+    # 2. LIMPIAR NOMBRE
     df["Producto"] = df["Producto"].apply(limpiar_nombre_visual)
     
     # 3. AGRUPAR
@@ -172,7 +168,6 @@ if archivo:
     df_res = procesar_pdf(archivo)
     
     if df_res is not None and not df_res.empty:
-        # Generar Texto
         mensaje_txt = "📋 *LISTA DE REPOSICIÓN*\n"
         cats = sorted(df_res["Categoria"].unique())
         
@@ -183,12 +178,11 @@ if archivo:
             
             for _, r in sub.iterrows():
                 cant = int(r['Cantidad']) if r['Cantidad'].is_integer() else r['Cantidad']
-                # FORMATO SIMPLE: 1 x NOMBRE
                 mensaje_txt += f"{cant} x {r['Producto']}\n"
         
         total = len(df_res)
         l = len(mensaje_txt)
-        st.success(f"✅ {total} artículos.")
+        st.success(f"✅ {total} artículos organizados.")
         st.text_area("Vista previa:", mensaje_txt, height=500)
         
         if st.button("🚀 Enviar a WhatsApp", type="primary"):
