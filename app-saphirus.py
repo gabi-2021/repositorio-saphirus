@@ -7,8 +7,8 @@ from twilio.rest import Client
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Repositor Saphirus", page_icon="✨", layout="centered")
-st.title("✨ Repositor Saphirus 13.0")
-st.caption("Arquitectura Modular: Limpieza específica por categoría")
+st.title("✨ Repositor Saphirus 14.0")
+st.caption("Especialistas de Limpieza Avanzados")
 
 # --- CREDENCIALES ---
 with st.sidebar:
@@ -30,14 +30,14 @@ with st.sidebar:
 def detectar_categoria(producto):
     p = producto.upper()
     
-    # AMBAR (Prioridad 1)
+    # AMBAR
     if "AMBAR" in p:
         if "AEROSOL" in p: return "🔸 Aerosoles Ambar"
         if "TEXTIL" in p or "150 ML" in p: return "🔸 Textiles Ambar"
         if "SAHUMERIO" in p: return "🔸 Sahumerios Ambar"
         return "🔸 Línea Ambar Varios"
 
-    # HOME SPRAY (Prioridad 2 - Antes que Textil normal)
+    # HOME SPRAY (Prioridad alta)
     if "HOME SPRAY" in p or "500 ML" in p or "500ML" in p: 
         return "🏠 Home Spray"
 
@@ -58,6 +58,8 @@ def detectar_categoria(producto):
     if "TEXTIL" in p: return "👕 Textiles (250ml)"
     if "AEROSOL" in p: return "💨 Aerosoles"
     if "DIFUSOR" in p or "VARILLA" in p: return "🎍 Difusores"
+    
+    # SAHUMERIOS (DIVIDIDOS)
     if "SAHUMERIO" in p:
         if "HIERBAS" in p: return "🌿 Sahumerios Hierbas"
         if "HIMALAYA" in p: return "🏔️ Sahumerios Himalaya"
@@ -74,12 +76,10 @@ def detectar_categoria(producto):
     
     return "📦 Varios"
 
-# --- 2. ESPECIALISTAS DE LIMPIEZA (MODULAR) ---
+# --- 2. ESPECIALISTAS DE LIMPIEZA (NUEVOS) ---
 
 def limpiar_general(nombre):
-    """Limpieza básica aplicable a todo si falla la específica"""
     n = nombre
-    # Borrar sufijos comunes de Saphirus
     n = re.sub(r"\s*[-–]?\s*SAPHIRUS.*$", "", n, flags=re.IGNORECASE)
     n = re.sub(r"\s*[-–]?\s*AMBAR.*$", "", n, flags=re.IGNORECASE)
     n = n.strip()
@@ -87,49 +87,57 @@ def limpiar_general(nombre):
     n = re.sub(r"\s*[-–]$", "", n)
     return n
 
+def limpiar_sahumerio(nombre):
+    n = nombre.upper()
+    # Borrar prefijos específicos de cada tipo
+    n = re.sub(r"^SAHUMERIO HIERBAS\s*[-–]?\s*", "", n)
+    n = re.sub(r"^SAHUMERIO HIMALAYA\s*[-–]?\s*", "", n)
+    n = re.sub(r"^SAHUMERIO\s*[-–]?\s*", "", n) # Para el genérico
+    return limpiar_general(n)
+
+def limpiar_home_spray(nombre):
+    n = nombre.upper()
+    # 1. Borrar Prefijo
+    n = re.sub(r"^HOME SPRAY\s*[-–]?\s*", "", n)
+    
+    # 2. Borrar Sufijo Gigante (Todo lo que sigue a AROMATIZANTE TEXTIL)
+    # Esto borra " - AROMATIZANTE TEXTIL 500 ML" de un golpe
+    n = re.sub(r"\s*[-–]?\s*AROMATIZANTE TEXTIL.*$", "", n)
+    
+    # 3. Borrar basura de ml suelta si queda
+    n = re.sub(r"\s*500\s*ML.*$", "", n)
+    
+    return limpiar_general(n)
+
 def limpiar_textil(nombre):
     n = nombre.upper()
-    # 1. Caso Ambar infiltrado (limpieza dura)
     n = re.sub(r"^AROMATIZADOR TEXTIL 150 ML AMBAR\s*[-–]?\s*", "", n)
-    
-    # 2. Borrar prefijos textiles estándar
     prefijos = [
         r"^AROMATIZADOR TEXTIL 250 ML\s*[-–]?\s*",
         r"^AROMATIZADOR TEXTIL MINI 60 ML\s*[-–]?\s*",
         r"^AROMATIZADOR TEXTIL\s*[-–]?\s*"
     ]
     for p in prefijos: n = re.sub(p, "", n)
-    
-    # 3. Intentar extracción inteligente: "FRAGANCIA - SAPHIRUS"
-    # Si termina en " - SAPHIRUS", lo quitamos.
-    # Si termina en " SAPHIRUS" (sin guion, el error que mencionaste), también.
-    n = re.sub(r"\s*[-–]?\s*SAPHIRUS.*$", "", n)
-    
     return limpiar_general(n)
 
 def limpiar_autos(nombre):
     n = nombre.upper()
-    # Borrar marcas de auto
     n = re.sub(r"CARITAS EMOGI X 2", "", n)
     n = re.sub(r"RUTA 66", "", n)
     n = re.sub(r"AROMATIZANTE AUTO", "", n)
     n = re.sub(r"DISPOSITIVO TOUCH", "", n)
-    n = re.sub(r"\s*X\s*2.*$", "", n) # Borrar "X 2"
+    n = re.sub(r"\s*X\s*2.*$", "", n)
     return limpiar_general(n)
 
 def limpiar_velas(nombre):
     n = nombre.upper()
-    # Solo borrar la marca, dejar el "X 12 UNIDADES"
     n = re.sub(r"VELAS SAPHIRUS", "VELAS", n)
-    # Si quedó solo "VELAS", intentar dejarlo así, o limpiar marca si estorba
     n = re.sub(r"\s*[-–]?\s*SAPHIRUS.*$", "", n)
     return n.strip()
 
 def limpiar_antihumedad(nombre):
     n = nombre.upper()
-    # Arreglar tartamudeo
     n = re.sub(r"ANTIHUMEDAD ANTI HUMEDAD", "ANTIHUMEDAD", n)
-    # Borrar códigos finales
     n = re.sub(r"\s*-\s*\d+$", "", n)
     return limpiar_general(n)
 
@@ -143,14 +151,17 @@ def limpiar_difusor(nombre):
     n = re.sub(r"^DIFUSOR AROMATICO\s*[-–]?\s*", "", n)
     n = re.sub(r"^DIFUSOR PREMIUM\s*[-–]?\s*", "", n)
     n = re.sub(r"^DIFUSOR\s*[-–]?\s*", "", n)
-    n = re.sub(r"\s*[-–]?\s*VARILLA.*$", "", n) # Borrar "VARILLA SAPHIRUS"
+    n = re.sub(r"\s*[-–]?\s*VARILLA.*$", "", n)
     return limpiar_general(n)
 
-# --- 3. DISPATCHER (El Cerebro que elige al especialista) ---
+# --- 3. DISPATCHER ---
 def limpiar_producto_por_categoria(row):
     cat = row["Categoria"]
     nom = row["Producto"]
     
+    # Asignación de Especialistas
+    if "Sahumerios" in cat: return limpiar_sahumerio(nom)
+    if "Home Spray" in cat: return limpiar_home_spray(nom)
     if "Textiles" in cat: return limpiar_textil(nom)
     if "Autos" in cat: return limpiar_autos(nom)
     if "Aerosoles" in cat: return limpiar_aerosol(nom)
@@ -158,13 +169,12 @@ def limpiar_producto_por_categoria(row):
     if "Velas" in cat: return limpiar_velas(nom)
     if "Antihumedad" in cat: return limpiar_antihumedad(nom)
     
-    # Default para el resto
-    # Limpiezas específicas globales
+    # Default
     nom = re.sub(r"PERFUME MINI MILANO\s*[-–]?\s*", "", nom, flags=re.IGNORECASE)
     nom = re.sub(r"SAPHIRUS PARFUM", "", nom, flags=re.IGNORECASE)
     return limpiar_general(nom)
 
-# --- 4. PROCESAMIENTO PRINCIPAL ---
+# --- 4. PROCESAMIENTO ---
 def subir_archivo_robusto(texto_contenido):
     try:
         files = {
@@ -210,14 +220,13 @@ def procesar_pdf(archivo):
     # 1. ASIGNAR CATEGORÍA
     df["Categoria"] = df["Producto"].apply(detectar_categoria)
     
-    # 2. LIMPIEZA MODULAR (Aquí ocurre la magia)
-    # Aplicamos la función fila por fila
+    # 2. LIMPIEZA MODULAR
     df["Producto"] = df.apply(limpiar_producto_por_categoria, axis=1)
     
-    # 3. GUARDIA FINAL (Si quedó vacío, volver al original limpiado básico)
+    # 3. GUARDIA FINAL
     def check_vacio(row):
         if len(row["Producto"]) < 2:
-            return limpiar_general(row["Producto"]) # Fallback suave
+            return limpiar_general(row["Producto"])
         return row["Producto"]
     
     # 4. AGRUPAR
