@@ -7,7 +7,7 @@ from twilio.rest import Client
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Repositor Saphirus", page_icon="✨", layout="centered")
-st.title("✨ Repositor Saphirus 15.0")
+st.title("✨ Repositor Saphirus 16.0")
 
 # --- CREDENCIALES ---
 with st.sidebar:
@@ -25,15 +25,18 @@ with st.sidebar:
         FROM = st.text_input("From")
         TO = st.text_input("To")
 
-# --- 1. DETECCIÓN DE CATEGORÍA (Afinada) ---
+# --- 1. DETECCIÓN DE CATEGORÍA (Orden Corregido) ---
 def detectar_categoria(producto):
     p = producto.upper()
     
-    # TOUCH (NUEVAS CATEGORÍAS ESPECÍFICAS)
-    if "REPUESTO" in p and ("TOUCH" in p or "GR/13" in p): 
-        return "🔄 Repuestos de Touch"
+    # TOUCH - DISPOSITIVOS (Prioridad 1: Antes que Repuestos)
+    # Si dice DISPOSITIVO, es aparato, aunque diga "repuesto" después.
     if "DISPOSITIVO" in p and "TOUCH" in p: 
         return "🖱️ Dispositivos Touch"
+
+    # TOUCH - REPUESTOS (Prioridad 2)
+    if ("REPUESTO" in p and "TOUCH" in p) or "GR/13" in p: 
+        return "🔄 Repuestos de Touch"
 
     # AMBAR
     if "AMBAR" in p:
@@ -89,44 +92,40 @@ def limpiar_general(nombre):
     n = n.strip()
     n = re.sub(r"^[-–]\s*", "", n)
     n = re.sub(r"\s*[-–]$", "", n)
-    if len(n) < 3: return nombre # Rescate si borró todo
+    if len(n) < 3: return nombre
     return n
 
 def limpiar_sahumerio_ambar(nombre):
     n = nombre.upper()
-    # Borra el prefijo pero deja el nombre
     n = re.sub(r"^SAHUMERIO\s*[-–]?\s*AMBAR\s*[-–]?\s*", "", n)
-    # Si el nombre era SOLO "SAHUMERIO AMBAR", restaurar genérico
-    if len(n) < 3: return "SAHUMERIO AMBAR (Sin fragancia detectada)"
+    if len(n) < 3: return "SAHUMERIO AMBAR (Generico)"
     return limpiar_general(n)
 
 def limpiar_repuesto_touch(nombre):
     n = nombre.upper()
-    
-    # FIX: DULZURA TROPICAL MAL FORMATEADO
-    # Transforma "REPUESTO TOUCH GR/13 CM3 DULZURA..." en "DULZURA..."
+    # 1. Borrar prefijos técnicos
     n = re.sub(r"REPUESTO TOUCH\s*(9\s*)?GR/13\s*CM3\s*[-–]?\s*", "", n)
-    
-    # Limpieza estándar
     n = re.sub(r"^REPUESTO TOUCH\s*[-–]?\s*", "", n)
-    n = re.sub(r"SAPHIRUS", "", n)
     
-    return n.strip()
+    # 2. Limpieza estándar
+    return limpiar_general(n)
 
 def limpiar_dispositivo_touch(nombre):
     n = nombre.upper()
     
-    # FIX: NEGRO MAL FORMATEADO
+    # 1. REORDENAMIENTO INTELIGENTE (NEGRO)
     # "DISPOSITIVO TOUCH + REPUESTO NEGRO DURAZNO..." -> "NEGRO + REPUESTO DURAZNO..."
-    n = re.sub(r"DISPOSITIVO TOUCH\s*\+\s*REPUESTO\s*NEGRO", "NEGRO + REPUESTO", n)
+    # Detectamos "REPUESTO NEGRO" y lo invertimos
+    if "REPUESTO NEGRO" in n:
+        n = n.replace("REPUESTO NEGRO", "NEGRO + REPUESTO")
     
-    # Limpieza estándar de prefijo
-    n = re.sub(r"^DISPOSITIVO TOUCH\s*[-–]?\s*", "", n)
+    # 2. Limpiar prefijo "DISPOSITIVO TOUCH"
+    n = re.sub(r"^DISPOSITIVO TOUCH\s*(\+)?\s*", "", n) # Borra "DISPOSITIVO TOUCH" y opcionalmente un "+"
     
-    # Limpiar códigos al final (ej: 688758)
+    # 3. Limpiar códigos al final
     n = re.sub(r"\s*\d{6,}$", "", n)
     
-    return n.strip()
+    return limpiar_general(n)
 
 def limpiar_sahumerio(nombre):
     n = nombre.upper()
@@ -191,10 +190,9 @@ def limpiar_producto_por_categoria(row):
     cat = row["Categoria"]
     nom = row["Producto"]
     
-    # Asignación de Especialistas
-    if "Sahumerios Ambar" in cat: return limpiar_sahumerio_ambar(nom) # NUEVO
-    if "Repuestos de Touch" in cat: return limpiar_repuesto_touch(nom) # NUEVO
-    if "Dispositivos Touch" in cat: return limpiar_dispositivo_touch(nom) # NUEVO
+    if "Sahumerios Ambar" in cat: return limpiar_sahumerio_ambar(nom)
+    if "Repuestos de Touch" in cat: return limpiar_repuesto_touch(nom)
+    if "Dispositivos Touch" in cat: return limpiar_dispositivo_touch(nom)
     
     if "Sahumerios" in cat: return limpiar_sahumerio(nom)
     if "Home Spray" in cat: return limpiar_home_spray(nom)
@@ -205,7 +203,6 @@ def limpiar_producto_por_categoria(row):
     if "Velas" in cat: return limpiar_velas(nom)
     if "Antihumedad" in cat: return limpiar_antihumedad(nom)
     
-    # Default
     nom = re.sub(r"PERFUME MINI MILANO\s*[-–]?\s*", "", nom, flags=re.IGNORECASE)
     nom = re.sub(r"SAPHIRUS PARFUM", "", nom, flags=re.IGNORECASE)
     return limpiar_general(nom)
