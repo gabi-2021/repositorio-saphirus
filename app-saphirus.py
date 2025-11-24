@@ -7,8 +7,7 @@ from twilio.rest import Client
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Repositor Saphirus", page_icon="✨", layout="centered")
-st.title("✨ Repositor Saphirus 14.0")
-st.caption("Especialistas de Limpieza Avanzados")
+st.title("✨ Repositor Saphirus 15.0")
 
 # --- CREDENCIALES ---
 with st.sidebar:
@@ -26,10 +25,16 @@ with st.sidebar:
         FROM = st.text_input("From")
         TO = st.text_input("To")
 
-# --- 1. DETECCIÓN DE CATEGORÍA ---
+# --- 1. DETECCIÓN DE CATEGORÍA (Afinada) ---
 def detectar_categoria(producto):
     p = producto.upper()
     
+    # TOUCH (NUEVAS CATEGORÍAS ESPECÍFICAS)
+    if "REPUESTO" in p and ("TOUCH" in p or "GR/13" in p): 
+        return "🔄 Repuestos de Touch"
+    if "DISPOSITIVO" in p and "TOUCH" in p: 
+        return "🖱️ Dispositivos Touch"
+
     # AMBAR
     if "AMBAR" in p:
         if "AEROSOL" in p: return "🔸 Aerosoles Ambar"
@@ -37,7 +42,7 @@ def detectar_categoria(producto):
         if "SAHUMERIO" in p: return "🔸 Sahumerios Ambar"
         return "🔸 Línea Ambar Varios"
 
-    # HOME SPRAY (Prioridad alta)
+    # HOME SPRAY
     if "HOME SPRAY" in p or "500 ML" in p or "500ML" in p: 
         return "🏠 Home Spray"
 
@@ -45,9 +50,8 @@ def detectar_categoria(producto):
     if "MINI MILANO" in p: return "🧴 Perfume Mini Milano"
     if "PARFUM" in p or "PERFUME" in p: return "🧴 Parfum / Perfumes"
 
-    # APARATOS
-    if "APARATO" in p or "HORNILLO" in p or "DISPOSITIVO" in p:
-        if "TOUCH" in p: return "🚗 Autos - Touch/Varios"
+    # APARATOS (Resto)
+    if "APARATO" in p or "HORNILLO" in p:
         return "⚙️ Aparatos y Hornillos"
 
     # PREMIUM
@@ -59,7 +63,7 @@ def detectar_categoria(producto):
     if "AEROSOL" in p: return "💨 Aerosoles"
     if "DIFUSOR" in p or "VARILLA" in p: return "🎍 Difusores"
     
-    # SAHUMERIOS (DIVIDIDOS)
+    # SAHUMERIOS
     if "SAHUMERIO" in p:
         if "HIERBAS" in p: return "🌿 Sahumerios Hierbas"
         if "HIMALAYA" in p: return "🏔️ Sahumerios Himalaya"
@@ -68,7 +72,7 @@ def detectar_categoria(producto):
     # AUTOS
     if "CARITAS" in p: return "😎 Autos - Caritas"
     if "RUTA" in p or "RUTA 66" in p: return "🛣️ Autos - Ruta 66"
-    if "AUTO" in p or "TOUCH" in p: return "🚗 Autos - Touch/Varios"
+    if "AUTO" in p: return "🚗 Autos - Varios"
 
     if "VELA" in p: return "🕯️ Velas"
     if "ACEITE" in p: return "💧 Aceites"
@@ -76,7 +80,7 @@ def detectar_categoria(producto):
     
     return "📦 Varios"
 
-# --- 2. ESPECIALISTAS DE LIMPIEZA (NUEVOS) ---
+# --- 2. ESPECIALISTAS DE LIMPIEZA ---
 
 def limpiar_general(nombre):
     n = nombre
@@ -85,28 +89,57 @@ def limpiar_general(nombre):
     n = n.strip()
     n = re.sub(r"^[-–]\s*", "", n)
     n = re.sub(r"\s*[-–]$", "", n)
+    if len(n) < 3: return nombre # Rescate si borró todo
     return n
+
+def limpiar_sahumerio_ambar(nombre):
+    n = nombre.upper()
+    # Borra el prefijo pero deja el nombre
+    n = re.sub(r"^SAHUMERIO\s*[-–]?\s*AMBAR\s*[-–]?\s*", "", n)
+    # Si el nombre era SOLO "SAHUMERIO AMBAR", restaurar genérico
+    if len(n) < 3: return "SAHUMERIO AMBAR (Sin fragancia detectada)"
+    return limpiar_general(n)
+
+def limpiar_repuesto_touch(nombre):
+    n = nombre.upper()
+    
+    # FIX: DULZURA TROPICAL MAL FORMATEADO
+    # Transforma "REPUESTO TOUCH GR/13 CM3 DULZURA..." en "DULZURA..."
+    n = re.sub(r"REPUESTO TOUCH\s*(9\s*)?GR/13\s*CM3\s*[-–]?\s*", "", n)
+    
+    # Limpieza estándar
+    n = re.sub(r"^REPUESTO TOUCH\s*[-–]?\s*", "", n)
+    n = re.sub(r"SAPHIRUS", "", n)
+    
+    return n.strip()
+
+def limpiar_dispositivo_touch(nombre):
+    n = nombre.upper()
+    
+    # FIX: NEGRO MAL FORMATEADO
+    # "DISPOSITIVO TOUCH + REPUESTO NEGRO DURAZNO..." -> "NEGRO + REPUESTO DURAZNO..."
+    n = re.sub(r"DISPOSITIVO TOUCH\s*\+\s*REPUESTO\s*NEGRO", "NEGRO + REPUESTO", n)
+    
+    # Limpieza estándar de prefijo
+    n = re.sub(r"^DISPOSITIVO TOUCH\s*[-–]?\s*", "", n)
+    
+    # Limpiar códigos al final (ej: 688758)
+    n = re.sub(r"\s*\d{6,}$", "", n)
+    
+    return n.strip()
 
 def limpiar_sahumerio(nombre):
     n = nombre.upper()
-    # Borrar prefijos específicos de cada tipo
     n = re.sub(r"^SAHUMERIO HIERBAS\s*[-–]?\s*", "", n)
     n = re.sub(r"^SAHUMERIO HIMALAYA\s*[-–]?\s*", "", n)
-    n = re.sub(r"^SAHUMERIO\s*[-–]?\s*", "", n) # Para el genérico
+    n = re.sub(r"^SAHUMERIO\s*[-–]?\s*", "", n)
     return limpiar_general(n)
 
 def limpiar_home_spray(nombre):
     n = nombre.upper()
-    # 1. Borrar Prefijo
     n = re.sub(r"^HOME SPRAY\s*[-–]?\s*", "", n)
-    
-    # 2. Borrar Sufijo Gigante (Todo lo que sigue a AROMATIZANTE TEXTIL)
-    # Esto borra " - AROMATIZANTE TEXTIL 500 ML" de un golpe
     n = re.sub(r"\s*[-–]?\s*AROMATIZANTE TEXTIL.*$", "", n)
-    
-    # 3. Borrar basura de ml suelta si queda
     n = re.sub(r"\s*500\s*ML.*$", "", n)
-    
     return limpiar_general(n)
 
 def limpiar_textil(nombre):
@@ -125,7 +158,6 @@ def limpiar_autos(nombre):
     n = re.sub(r"CARITAS EMOGI X 2", "", n)
     n = re.sub(r"RUTA 66", "", n)
     n = re.sub(r"AROMATIZANTE AUTO", "", n)
-    n = re.sub(r"DISPOSITIVO TOUCH", "", n)
     n = re.sub(r"\s*X\s*2.*$", "", n)
     return limpiar_general(n)
 
@@ -160,6 +192,10 @@ def limpiar_producto_por_categoria(row):
     nom = row["Producto"]
     
     # Asignación de Especialistas
+    if "Sahumerios Ambar" in cat: return limpiar_sahumerio_ambar(nom) # NUEVO
+    if "Repuestos de Touch" in cat: return limpiar_repuesto_touch(nom) # NUEVO
+    if "Dispositivos Touch" in cat: return limpiar_dispositivo_touch(nom) # NUEVO
+    
     if "Sahumerios" in cat: return limpiar_sahumerio(nom)
     if "Home Spray" in cat: return limpiar_home_spray(nom)
     if "Textiles" in cat: return limpiar_textil(nom)
@@ -223,13 +259,7 @@ def procesar_pdf(archivo):
     # 2. LIMPIEZA MODULAR
     df["Producto"] = df.apply(limpiar_producto_por_categoria, axis=1)
     
-    # 3. GUARDIA FINAL
-    def check_vacio(row):
-        if len(row["Producto"]) < 2:
-            return limpiar_general(row["Producto"])
-        return row["Producto"]
-    
-    # 4. AGRUPAR
+    # 3. AGRUPAR
     df_final = df.groupby(["Categoria", "Producto"], as_index=False)["Cantidad"].sum()
     
     return df_final
