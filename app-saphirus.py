@@ -7,7 +7,7 @@ from twilio.rest import Client
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Repositor Saphirus", page_icon="✨", layout="centered")
-st.title("✨ Repositor Saphirus 17.0")
+st.title("✨ Repositor Saphirus 18.0")
 
 # --- CREDENCIALES ---
 with st.sidebar:
@@ -25,15 +25,15 @@ with st.sidebar:
         FROM = st.text_input("From")
         TO = st.text_input("To")
 
-# --- 1. DETECCIÓN DE CATEGORÍA (Expandida) ---
+# --- 1. DETECCIÓN DE CATEGORÍA ---
 def detectar_categoria(producto):
     p = producto.upper()
     
-    # 1. TOUCH (Prioridad máxima)
+    # 1. TOUCH
     if "DISPOSITIVO" in p and "TOUCH" in p: return "🖱️ Dispositivos Touch"
     if ("REPUESTO" in p and "TOUCH" in p) or "GR/13" in p: return "🔄 Repuestos de Touch"
 
-    # 2. PERFUMERÍA (Nueva)
+    # 2. PERFUMERÍA
     if "MINI MILANO" in p: return "🧴 Perfume Mini Milano"
     if "PARFUM" in p: return "🧴 Parfum / Perfumes"
 
@@ -47,13 +47,13 @@ def detectar_categoria(producto):
     # 4. HOME SPRAY
     if "HOME SPRAY" in p or "500 ML" in p or "500ML" in p: return "🏠 Home Spray"
 
-    # 5. APARATOS (Resto de aparatos no touch)
+    # 5. APARATOS
     if "APARATO" in p or "HORNILLO" in p: return "⚙️ Aparatos"
 
     # 6. PREMIUM
     if "PREMIUM" in p: return "💎 Difusores Premium"
 
-    # 7. SAHUMERIOS (Divididos)
+    # 7. SAHUMERIOS
     if "SAHUMERIO" in p:
         if "HIERBAS" in p: return "🌿 Sahumerios Hierbas"
         if "HIMALAYA" in p: return "🏔️ Sahumerios Himalaya"
@@ -64,14 +64,14 @@ def detectar_categoria(producto):
     if "RUTA" in p or "RUTA 66" in p: return "🛣️ Autos - Ruta 66"
     if "AUTO" in p: return "🚗 Autos - Varios"
 
-    # 9. ESTÁNDAR
+    # 9. ESTÁNDAR Y NUEVOS
     if "TEXTIL" in p: return "👕 Textiles (250ml)"
     if "AEROSOL" in p: return "💨 Aerosoles"
     if "DIFUSOR" in p or "VARILLA" in p: return "🎍 Difusores"
     if "VELA" in p: return "🕯️ Velas"
     if "ACEITE" in p: return "💧 Aceites"
     if "ANTIHUMEDAD" in p: return "💧 Antihumedad"
-    if "LIMPIADOR" in p: return "🧼 Limpiadores"
+    if "LIMPIADOR" in p: return "🧼 Limpiadores Multisuperficies" # Nombre Nuevo
     
     return "📦 Varios"
 
@@ -87,15 +87,25 @@ def limpiar_general(nombre):
     if len(n) < 2: return nombre
     return n
 
+def limpiar_limpiadores(nombre):
+    n = nombre.upper()
+    # Borrar toda la intro larga hasta "SHINY" y sus guiones
+    n = re.sub(r"^LIMPIADOR\s+LIQUIDO\s+MULTISUPERFICIES\s*250\s*ML\s*[-–]?\s*SHINY\s*[-–]?\s*", "", n)
+    # Borrar códigos numéricos sueltos al final (ej: 88857)
+    n = re.sub(r"\s*\d{4,6}$", "", n)
+    return limpiar_general(n)
+
+def limpiar_aceites(nombre):
+    n = nombre.upper()
+    # Borrar prefijo
+    n = re.sub(r"^ACEITE\s+ESENCIAL\s*[-–]?\s*", "", n)
+    return limpiar_general(n)
+
 def limpiar_antihumedad(nombre):
     n = nombre.upper()
-    # 1. Borrar la redundancia "ANTI HUMEDAD"
     n = re.sub(r"ANTI\s+HUMEDAD", "", n)
-    # 2. Borrar la marca SAPHIRUS
     n = re.sub(r"SAPHIRUS", "", n)
-    # 3. Borrar códigos numéricos al final (ej: - 684569)
     n = re.sub(r"[-–]\s*\d+$", "", n)
-    # 4. Limpiar espacios dobles que quedan
     n = re.sub(r"\s+", " ", n).strip()
     return n
 
@@ -109,7 +119,7 @@ def limpiar_aparatos(nombre):
     n = nombre.upper()
     n = re.sub(r"APARATO ANALOGICO DECO", "ANALOGICO", n)
     n = re.sub(r"HORNILLO CERAMICA", "HORNILLO", n)
-    n = re.sub(r"\s*[-–]?\s*SAPHIRUS.*$", "", n) # Borrar marca final
+    n = re.sub(r"\s*[-–]?\s*SAPHIRUS.*$", "", n)
     return n.strip()
 
 def limpiar_sahumerio_ambar(nombre):
@@ -118,7 +128,7 @@ def limpiar_sahumerio_ambar(nombre):
     if len(n) < 3: return "SAHUMERIO AMBAR (Generico)"
     return limpiar_general(n)
 
-def limpiar_sahumerio_tipo(nombre): # Para Hierbas y Himalaya
+def limpiar_sahumerio_tipo(nombre):
     n = nombre.upper()
     n = re.sub(r"^SAHUMERIO HIERBAS\s*[-–]?\s*", "", n)
     n = re.sub(r"^SAHUMERIO HIMALAYA\s*[-–]?\s*", "", n)
@@ -184,13 +194,17 @@ def limpiar_producto_por_categoria(row):
     cat = row["Categoria"]
     nom = row["Producto"]
     
+    # Nuevos mapeos
+    if "Limpiadores" in cat: return limpiar_limpiadores(nom)
+    if "Aceites" in cat: return limpiar_aceites(nom)
+    
+    # Mapeos existentes
     if "Sahumerios Ambar" in cat: return limpiar_sahumerio_ambar(nom)
     if "Repuestos de Touch" in cat: return limpiar_repuesto_touch(nom)
     if "Dispositivos Touch" in cat: return limpiar_dispositivo_touch(nom)
-    if "Antihumedad" in cat: return limpiar_antihumedad(nom) # NUEVO
-    if "Perfume" in cat or "Parfum" in cat: return limpiar_perfumes(nom) # NUEVO
-    if "Aparatos" in cat: return limpiar_aparatos(nom) # NUEVO
-    
+    if "Antihumedad" in cat: return limpiar_antihumedad(nom)
+    if "Perfume" in cat or "Parfum" in cat: return limpiar_perfumes(nom)
+    if "Aparatos" in cat: return limpiar_aparatos(nom)
     if "Sahumerios" in cat: return limpiar_sahumerio_tipo(nom)
     if "Home Spray" in cat: return limpiar_home_spray(nom)
     if "Textiles" in cat: return limpiar_textil(nom)
