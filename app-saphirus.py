@@ -156,6 +156,7 @@ REGLAS_LIMPIEZA = {
         (r".*ROSA.*", "ROSA"),
         (r".*BEIGE.*", "BEIGE"),
         (r".*BLANCO.*", "BLANCO"),
+        (r".*ROJO.*", "ROJO"),
         
         # Unificar Hornillos
         (r".*HORNILLO.*", "HORNILLO CHICO"),
@@ -374,4 +375,5 @@ else:
 
 st.markdown("---")
 st.caption("Repositor Saphirus 20.0 | Edición Shiny & Premium")
+
 
