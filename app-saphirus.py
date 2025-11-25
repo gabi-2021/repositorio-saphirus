@@ -145,8 +145,23 @@ REGLAS_LIMPIEZA = {
         (r"SAPHIRUS PARFUM\s*", ""),
     ],
     'aparatos': [
-        (r"APARATO ANALOGICO DECO", "ANALOGICO"),
-        (r"HORNILLO CERAMICA", "HORNILLO"),
+        # Reglas de Prioridad: Detectan la palabra clave y reemplazan TODO el nombre por ella
+        (r".*LATERAL.*", "LATERAL"),
+        (r".*FRONTAL.*", "FRONTAL"),
+        (r".*DIGITAL.*", "DIGITAL"),
+        
+        # Colores de los Aparatos Deco (Analogicos)
+        (r".*NEGRO.*", "NEGRO"),
+        (r".*GRIS.*", "GRIS"),
+        (r".*ROSA.*", "ROSA"),
+        (r".*BEIGE.*", "BEIGE"),
+        (r".*BLANCO.*", "BLANCO"),
+        
+        # Unificar Hornillos
+        (r".*HORNILLO.*", "HORNILLO CHICO"),
+        
+        # Limpieza final por si queda algo genérico (fallback)
+        (r"APARATO ANALOGICO DECO", "ANALOGICO"), 
     ],
     'sahumerio_ambar': [(r"^SAHUMERIO\s*[-–]?\s*AMBAR\s*[-–]?\s*", "")],
     'sahumerio_tipo': [
@@ -359,3 +374,4 @@ else:
 
 st.markdown("---")
 st.caption("Repositor Saphirus 20.0 | Edición Shiny & Premium")
+
