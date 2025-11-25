@@ -50,7 +50,7 @@ CATEGORIAS = {
     'perfume_mini': {'pattern': lambda p: "MINI MILANO" in p, 'emoji': "🧴", 'nombre': "Perfume Mini Milano"},
     'perfume_parfum': {'pattern': lambda p: "PARFUM" in p, 'emoji': "🧴", 'nombre': "Parfum / Perfumes"},
     
-    # Shiny General (NUEVO - Prioridad alta para atrapar limpiavidrios de 500ml antes que Home Spray)
+    # Shiny General
     'shiny_general': {
         'pattern': lambda p: "SHINY" in p and ("LIMPIAVIDRIOS" in p or "DESENGRASANTE" in p or "LUSTRAMUEBLE" in p), 
         'emoji': "✨", 
@@ -82,7 +82,10 @@ CATEGORIAS = {
     'auto_ruta': {'pattern': lambda p: "RUTA" in p or "RUTA 66" in p, 'emoji': "🛣️", 'nombre': "Autos - Ruta 66"},
     'auto_varios': {'pattern': lambda p: "AUTO" in p, 'emoji': "🚗", 'nombre': "Autos - Varios"},
     
-    # Estándar (Nombres actualizados)
+    # Textiles Mini (NUEVO - Antes de Textil estándar)
+    'textil_mini': {'pattern': lambda p: "TEXTIL" in p and "MINI" in p, 'emoji': "🤏", 'nombre': "Textiles Mini"},
+
+    # Estándar
     'textil': {'pattern': lambda p: "TEXTIL" in p, 'emoji': "👕", 'nombre': "Textiles Saphirus"},
     'aerosol': {'pattern': lambda p: "AEROSOL" in p, 'emoji': "💨", 'nombre': "Aerosoles Saphirus"},
     'difusor': {'pattern': lambda p: "DIFUSOR" in p or "VARILLA" in p, 'emoji': "🎍", 'nombre': "Difusores"},
@@ -100,7 +103,6 @@ def detectar_categoria(producto):
             return f"{config['emoji']} {config['nombre']}"
     return "📦 Varios"
 
-# --- REGLAS DE LIMPIEZA ---
 # --- REGLAS DE LIMPIEZA ---
 REGLAS_LIMPIEZA = {
     'general': [
@@ -120,17 +122,16 @@ REGLAS_LIMPIEZA = {
     ],
     'premium': [
         (r"^DIFUSOR PREMIUM\s*[-–]?\s*", ""),
-        (r"\s*[-–]?\s*AROMATICO.*$", ""),
+        (r"\s*[-–]?\s*AROMATICO.*$", ""), 
     ],
     'home_spray': [
         (r"^HOME SPRAY\s*[-–]?\s*", ""),
-        # CORRECCIÓN CLEMENTINA: Borra "AROMATIZANTE TEXTIL" tenga guion antes o no
-        (r"\s*[-–]?\s*AROMATIZANTE\s+TEXTIL.*$", ""),
+        # CORREGIDO: Borra "AROMATIZANTE TEXTIL" aunque no tenga guion antes
+        (r"\s*[-–]?\s*AROMATIZANTE\s+TEXTIL.*$", ""), 
         (r"\s*500\s*ML.*$", ""),
     ],
     'repuesto_touch': [
-        # CORRECCIÓN DULZURA TROPICAL: Hacemos el numero (\d+) opcional con '?' al principio
-        # Así atrapa tanto "9 GR/13 CM3" como "GR/13 CM3"
+        # CORREGIDO: Hace opcional el número inicial para casos como "GR/13 CM3"
         (r"(\d+\s*)?GR.*?CM3\s*[-–]?\s*", ""), 
         (r"^REPUESTO TOUCH\s*[-–]?\s*", ""),
     ],
@@ -145,7 +146,7 @@ REGLAS_LIMPIEZA = {
         (r"SAPHIRUS PARFUM\s*", ""),
     ],
     'aparatos': [
-        # REGLAS AGRESIVAS PARA APARATOS (Tu pedido anterior)
+        # NUEVAS REGLAS DE SIMPLIFICACIÓN TOTAL
         (r".*LATERAL.*", "LATERAL"),
         (r".*FRONTAL.*", "FRONTAL"),
         (r".*DIGITAL.*", "DIGITAL"),
@@ -154,7 +155,6 @@ REGLAS_LIMPIEZA = {
         (r".*ROSA.*", "ROSA"),
         (r".*BEIGE.*", "BEIGE"),
         (r".*BLANCO.*", "BLANCO"),
-        (r".*ROJO*", "ROJO"),
         (r".*HORNILLO.*", "HORNILLO CHICO"),
         (r"APARATO ANALOGICO DECO", "ANALOGICO"), # Fallback
     ],
@@ -168,10 +168,13 @@ REGLAS_LIMPIEZA = {
         (r"^DISPOSITIVO TOUCH\s*(\+)?\s*", ""),
         (r"\s*\d{6,}$", ""),
     ],
+    'textil_mini': [ # NUEVA REGLA
+        (r"^AROMATIZADOR TEXTIL MINI 60 ML\s*[-–]?\s*", ""),
+    ],
     'textil': [
         (r"^AROMATIZADOR TEXTIL 150 ML AMBAR\s*[-–]?\s*", ""),
         (r"^AROMATIZADOR TEXTIL 250 ML\s*[-–]?\s*", ""),
-        (r"^AROMATIZADOR TEXTIL MINI 60 ML\s*[-–]?\s*", ""),
+        (r"^AROMATIZADOR TEXTIL MINI 60 ML\s*[-–]?\s*", ""), # Por seguridad
         (r"^AROMATIZADOR TEXTIL\s*[-–]?\s*", ""),
     ],
     'autos': [
@@ -216,6 +219,7 @@ def limpiar_producto_por_categoria(row):
         "Aparatos": 'aparatos',
         "Sahumerios": 'sahumerio_tipo',
         "Home Spray": 'home_spray',
+        "Textiles Mini": 'textil_mini', # NUEVO MAPEO
         "Textiles": 'textil',
         "Autos": 'autos',
         "Aerosoles": 'aerosol',
@@ -229,6 +233,15 @@ def limpiar_producto_por_categoria(row):
             # Casos especiales Shiny (Reemplazo total)
             if regla == 'shiny_general':
                 return aplicar_reglas(nom, REGLAS_LIMPIEZA['shiny_general'])
+
+            # Casos especiales Aparatos (Reemplazo total priorizado)
+            if regla == 'aparatos':
+                 # Aplicamos directamente para que si encuentra match reemplace todo
+                 res = aplicar_reglas(nom, REGLAS_LIMPIEZA['aparatos'])
+                 # Si no cambió (no entró en reglas agresivas), limpiamos lo básico
+                 if res == nom: 
+                     res = res.replace("APARATO ANALOGICO DECO", "ANALOGICO")
+                 return res
 
             resultado = aplicar_reglas(nom, REGLAS_LIMPIEZA.get(regla, []))
             resultado = aplicar_reglas(resultado, REGLAS_LIMPIEZA['general'])
@@ -368,7 +381,4 @@ else:
     st.info("👆 Sube un archivo PDF para comenzar")
 
 st.markdown("---")
-st.caption("Repositor Saphirus 20.0 | Edición Shiny & Premium")
-
-
-
+st.caption("Repositor Saphirus 20.1 | Actualización: Aparatos, Mini y Touch")
