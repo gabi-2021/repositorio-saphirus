@@ -16,6 +16,7 @@ st.title("✨ Repositor Saphirus 20.0")
 
 # --- CREDENCIALES ---
 def cargar_credenciales():
+    """Carga credenciales desde secrets o inputs del usuario"""
     with st.sidebar:
         st.header("🔐 Twilio")
         try:
@@ -27,7 +28,7 @@ def cargar_credenciales():
             }
             st.success("Credenciales OK 🔒")
             return credentials
-        except Exception:
+        except Exception as e:
             st.warning("Faltan secrets - Ingresa credenciales manualmente")
             return {
                 'SID': st.text_input("SID", type="password"),
@@ -39,7 +40,7 @@ def cargar_credenciales():
 credentials = cargar_credenciales()
 
 # --- PATRONES DE CATEGORIZACIÓN ---
-# EL ORDEN IMPORTA: Las reglas más específicas primero.
+# EL ORDEN IMPORTA: Las reglas más específicas deben ir primero.
 CATEGORIAS = {
     # Touch
     'touch_dispositivo': {'pattern': lambda p: "DISPOSITIVO" in p and "TOUCH" in p, 'emoji': "🖱️", 'nombre': "Dispositivos Touch"},
@@ -49,7 +50,7 @@ CATEGORIAS = {
     'perfume_mini': {'pattern': lambda p: "MINI MILANO" in p, 'emoji': "🧴", 'nombre': "Perfume Mini Milano"},
     'perfume_parfum': {'pattern': lambda p: "PARFUM" in p, 'emoji': "🧴", 'nombre': "Parfum / Perfumes"},
     
-    # Shiny General (NUEVO: Prioridad alta)
+    # Shiny General (NUEVO - Prioridad alta para atrapar limpiavidrios de 500ml antes que Home Spray)
     'shiny_general': {
         'pattern': lambda p: "SHINY" in p and ("LIMPIAVIDRIOS" in p or "DESENGRASANTE" in p or "LUSTRAMUEBLE" in p), 
         'emoji': "✨", 
@@ -92,6 +93,7 @@ CATEGORIAS = {
 }
 
 def detectar_categoria(producto):
+    """Detecta la categoría del producto usando patrones configurables"""
     p = producto.upper()
     for key, config in CATEGORIAS.items():
         if config['pattern'](p):
@@ -122,13 +124,14 @@ REGLAS_LIMPIEZA = {
     ],
     'home_spray': [
         (r"^HOME SPRAY\s*[-–]?\s*", ""),
-        (r"[-–]\s*AROMATIZANTE TEXTIL.*$", ""), # Regla más agresiva para Clementina
-        (r"\s*[-–]?\s*AROMATIZANTE TEXTIL.*$", ""), # Regla estándar
+        # Regla agresiva para Clementina: busca guion, espacios opcionales, AROMATIZANTE TEXTIL y todo lo que siga
+        (r"\s*[-–]\s*AROMATIZANTE TEXTIL.*$", ""), 
+        (r"\s*AROMATIZANTE TEXTIL.*$", ""), # Fallback sin guion
         (r"\s*500\s*ML.*$", ""),
     ],
     'repuesto_touch': [
-        # Regla mejorada para "9 GR /13CM3" con espacios variables
-        (r"\d+\s*GR\s*[/]?\s*\d+\s*CM3\s*[-–]?\s*", ""), 
+        # Regla flexible: Borra "9 GR...CM3" aunque tenga espacios raros como "9 GR /13CM3"
+        (r"\d+\s*GR.*?CM3\s*[-–]?\s*", ""), 
         (r"^REPUESTO TOUCH\s*[-–]?\s*", ""),
     ],
     'aceites': [(r"^ACEITE\s+ESENCIAL\s*[-–]?\s*", "")],
@@ -355,4 +358,4 @@ else:
     st.info("👆 Sube un archivo PDF para comenzar")
 
 st.markdown("---")
-st.caption("Repositor Saphirus 20.0 | Shiny General & Limpieza Avanzada")
+st.caption("Repositor Saphirus 20.0 | Edición Shiny & Premium")
