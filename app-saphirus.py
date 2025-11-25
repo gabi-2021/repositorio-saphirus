@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Repositor Saphirus", page_icon="✨", layout="centered")
-st.title("✨ Repositor Saphirus 20.0")
+st.title("✨ Repositor Saphirus 21.0")
 
 # --- CREDENCIALES ---
 def cargar_credenciales():
@@ -101,6 +101,7 @@ def detectar_categoria(producto):
     return "📦 Varios"
 
 # --- REGLAS DE LIMPIEZA ---
+# --- REGLAS DE LIMPIEZA ---
 REGLAS_LIMPIEZA = {
     'general': [
         (r"\s*[-–]?\s*SAPHIRUS.*$", ""),
@@ -108,11 +109,10 @@ REGLAS_LIMPIEZA = {
         (r"^[-–]\s*", ""),
         (r"\s*[-–]$", ""),
     ],
-    # Nueva regla Shiny General (Forzado de nombres)
     'shiny_general': [
         (r"^LIMPIAVIDRIOS.*", "LIMPIAVIDRIOS"), 
         (r"^DESENGRASANTE.*", "DESENGRASANTE"),
-        (r"^LUSTRAMUEBLES?.*", "LUSTRAMUEBLE"), # Atrapa singular y plural
+        (r"^LUSTRAMUEBLES?.*", "LUSTRAMUEBLE"),
     ],
     'limpiadores': [
         (r"^LIMPIADOR\s+LIQUIDO\s+MULTISUPERFICIES\s*250\s*ML\s*[-–]?\s*SHINY\s*[-–]?\s*", ""),
@@ -120,18 +120,18 @@ REGLAS_LIMPIEZA = {
     ],
     'premium': [
         (r"^DIFUSOR PREMIUM\s*[-–]?\s*", ""),
-        (r"\s*[-–]?\s*AROMATICO.*$", ""), # Borra " - AROMATICO" del final
+        (r"\s*[-–]?\s*AROMATICO.*$", ""),
     ],
     'home_spray': [
         (r"^HOME SPRAY\s*[-–]?\s*", ""),
-        # Regla agresiva para Clementina: busca guion, espacios opcionales, AROMATIZANTE TEXTIL y todo lo que siga
-        (r"\s*[-–]\s*AROMATIZANTE TEXTIL.*$", ""), 
-        (r"\s*AROMATIZANTE TEXTIL.*$", ""), # Fallback sin guion
+        # CORRECCIÓN CLEMENTINA: Borra "AROMATIZANTE TEXTIL" tenga guion antes o no
+        (r"\s*[-–]?\s*AROMATIZANTE\s+TEXTIL.*$", ""),
         (r"\s*500\s*ML.*$", ""),
     ],
     'repuesto_touch': [
-        # Regla flexible: Borra "9 GR...CM3" aunque tenga espacios raros como "9 GR /13CM3"
-        (r"\d+\s*GR.*?CM3\s*[-–]?\s*", ""), 
+        # CORRECCIÓN DULZURA TROPICAL: Hacemos el numero (\d+) opcional con '?' al principio
+        # Así atrapa tanto "9 GR/13 CM3" como "GR/13 CM3"
+        (r"(\d+\s*)?GR.*?CM3\s*[-–]?\s*", ""), 
         (r"^REPUESTO TOUCH\s*[-–]?\s*", ""),
     ],
     'aceites': [(r"^ACEITE\s+ESENCIAL\s*[-–]?\s*", "")],
@@ -145,24 +145,18 @@ REGLAS_LIMPIEZA = {
         (r"SAPHIRUS PARFUM\s*", ""),
     ],
     'aparatos': [
-        # Reglas de Prioridad: Detectan la palabra clave y reemplazan TODO el nombre por ella
+        # REGLAS AGRESIVAS PARA APARATOS (Tu pedido anterior)
         (r".*LATERAL.*", "LATERAL"),
         (r".*FRONTAL.*", "FRONTAL"),
         (r".*DIGITAL.*", "DIGITAL"),
-        
-        # Colores de los Aparatos Deco (Analogicos)
         (r".*NEGRO.*", "NEGRO"),
         (r".*GRIS.*", "GRIS"),
         (r".*ROSA.*", "ROSA"),
         (r".*BEIGE.*", "BEIGE"),
         (r".*BLANCO.*", "BLANCO"),
-        (r".*ROJO.*", "ROJO"),
-        
-        # Unificar Hornillos
+        (r".*ROJO*", "ROJO"),
         (r".*HORNILLO.*", "HORNILLO CHICO"),
-        
-        # Limpieza final por si queda algo genérico (fallback)
-        (r"APARATO ANALOGICO DECO", "ANALOGICO"), 
+        (r"APARATO ANALOGICO DECO", "ANALOGICO"), # Fallback
     ],
     'sahumerio_ambar': [(r"^SAHUMERIO\s*[-–]?\s*AMBAR\s*[-–]?\s*", "")],
     'sahumerio_tipo': [
@@ -375,5 +369,6 @@ else:
 
 st.markdown("---")
 st.caption("Repositor Saphirus 20.0 | Edición Shiny & Premium")
+
 
 
