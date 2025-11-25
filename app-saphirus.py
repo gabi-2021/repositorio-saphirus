@@ -4,300 +4,422 @@ import re
 import requests
 from pypdf import PdfReader
 from twilio.rest import Client
+import logging
+
+# Configurar logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Repositor Saphirus", page_icon="✨", layout="centered")
 st.title("✨ Repositor Saphirus 18.0")
 
 # --- CREDENCIALES ---
-with st.sidebar:
-    st.header("🔐 Twilio")
-    try:
-        SID = st.secrets["TWILIO_SID"]
-        TOK = st.secrets["TWILIO_TOKEN"]
-        FROM = st.secrets["TWILIO_FROM"]
-        TO = st.secrets["TWILIO_TO"]
-        st.success("Credenciales OK 🔒")
-    except:
-        st.warning("Faltan secrets")
-        SID = st.text_input("SID", type="password")
-        TOK = st.text_input("Token", type="password")
-        FROM = st.text_input("From")
-        TO = st.text_input("To")
+def cargar_credenciales():
+    """Carga credenciales desde secrets o inputs del usuario"""
+    with st.sidebar:
+        st.header("🔐 Twilio")
+        try:
+            credentials = {
+                'SID': st.secrets["TWILIO_SID"],
+                'TOK': st.secrets["TWILIO_TOKEN"],
+                'FROM': st.secrets["TWILIO_FROM"],
+                'TO': st.secrets["TWILIO_TO"]
+            }
+            st.success("Credenciales OK 🔒")
+            return credentials
+        except Exception as e:
+            logger.warning(f"No se pudieron cargar secrets: {e}")
+            st.warning("Faltan secrets - Ingresa credenciales manualmente")
+            return {
+                'SID': st.text_input("SID", type="password"),
+                'TOK': st.text_input("Token", type="password"),
+                'FROM': st.text_input("From"),
+                'TO': st.text_input("To")
+            }
 
-# --- 1. DETECCIÓN DE CATEGORÍA ---
+credentials = cargar_credenciales()
+
+# --- PATRONES DE CATEGORIZACIÓN ---
+CATEGORIAS = {
+    # Touch
+    'touch_dispositivo': {'pattern': lambda p: "DISPOSITIVO" in p and "TOUCH" in p, 'emoji': "🖱️", 'nombre': "Dispositivos Touch"},
+    'touch_repuesto': {'pattern': lambda p: ("REPUESTO" in p and "TOUCH" in p) or "GR/13" in p, 'emoji': "🔄", 'nombre': "Repuestos de Touch"},
+    
+    # Perfumería
+    'perfume_mini': {'pattern': lambda p: "MINI MILANO" in p, 'emoji': "🧴", 'nombre': "Perfume Mini Milano"},
+    'perfume_parfum': {'pattern': lambda p: "PARFUM" in p, 'emoji': "🧴", 'nombre': "Parfum / Perfumes"},
+    
+    # Ambar
+    'ambar_aerosol': {'pattern': lambda p: "AMBAR" in p and "AEROSOL" in p, 'emoji': "🔸", 'nombre': "Aerosoles Ambar"},
+    'ambar_textil': {'pattern': lambda p: "AMBAR" in p and ("TEXTIL" in p or "150 ML" in p), 'emoji': "🔸", 'nombre': "Textiles Ambar"},
+    'ambar_sahumerio': {'pattern': lambda p: "AMBAR" in p and "SAHUMERIO" in p, 'emoji': "🔸", 'nombre': "Sahumerios Ambar"},
+    'ambar_varios': {'pattern': lambda p: "AMBAR" in p, 'emoji': "🔸", 'nombre': "Línea Ambar Varios"},
+    
+    # Home Spray
+    'home_spray': {'pattern': lambda p: "HOME SPRAY" in p or "500 ML" in p or "500ML" in p, 'emoji': "🏠", 'nombre': "Home Spray"},
+    
+    # Aparatos
+    'aparatos': {'pattern': lambda p: "APARATO" in p or "HORNILLO" in p, 'emoji': "⚙️", 'nombre': "Aparatos"},
+    
+    # Premium
+    'premium': {'pattern': lambda p: "PREMIUM" in p, 'emoji': "💎", 'nombre': "Difusores Premium"},
+    
+    # Sahumerios
+    'sahumerio_hierbas': {'pattern': lambda p: "SAHUMERIO" in p and "HIERBAS" in p, 'emoji': "🌿", 'nombre': "Sahumerios Hierbas"},
+    'sahumerio_himalaya': {'pattern': lambda p: "SAHUMERIO" in p and "HIMALAYA" in p, 'emoji': "🏔️", 'nombre': "Sahumerios Himalaya"},
+    'sahumerio_varios': {'pattern': lambda p: "SAHUMERIO" in p, 'emoji': "🧘", 'nombre': "Sahumerios Varios"},
+    
+    # Autos
+    'auto_caritas': {'pattern': lambda p: "CARITAS" in p, 'emoji': "😎", 'nombre': "Autos - Caritas"},
+    'auto_ruta': {'pattern': lambda p: "RUTA" in p or "RUTA 66" in p, 'emoji': "🛣️", 'nombre': "Autos - Ruta 66"},
+    'auto_varios': {'pattern': lambda p: "AUTO" in p, 'emoji': "🚗", 'nombre': "Autos - Varios"},
+    
+    # Estándar
+    'textil': {'pattern': lambda p: "TEXTIL" in p, 'emoji': "👕", 'nombre': "Textiles (250ml)"},
+    'aerosol': {'pattern': lambda p: "AEROSOL" in p, 'emoji': "💨", 'nombre': "Aerosoles"},
+    'difusor': {'pattern': lambda p: "DIFUSOR" in p or "VARILLA" in p, 'emoji': "🎍", 'nombre': "Difusores"},
+    'vela': {'pattern': lambda p: "VELA" in p, 'emoji': "🕯️", 'nombre': "Velas"},
+    'aceite': {'pattern': lambda p: "ACEITE" in p, 'emoji': "💧", 'nombre': "Aceites"},
+    'antihumedad': {'pattern': lambda p: "ANTIHUMEDAD" in p, 'emoji': "💧", 'nombre': "Antihumedad"},
+    'limpiador': {'pattern': lambda p: "LIMPIADOR" in p, 'emoji': "🧼", 'nombre': "Limpiadores Multisuperficies"},
+}
+
 def detectar_categoria(producto):
+    """Detecta la categoría del producto usando patrones configurables"""
     p = producto.upper()
     
-    # 1. TOUCH
-    if "DISPOSITIVO" in p and "TOUCH" in p: return "🖱️ Dispositivos Touch"
-    if ("REPUESTO" in p and "TOUCH" in p) or "GR/13" in p: return "🔄 Repuestos de Touch"
-
-    # 2. PERFUMERÍA
-    if "MINI MILANO" in p: return "🧴 Perfume Mini Milano"
-    if "PARFUM" in p: return "🧴 Parfum / Perfumes"
-
-    # 3. AMBAR
-    if "AMBAR" in p:
-        if "AEROSOL" in p: return "🔸 Aerosoles Ambar"
-        if "TEXTIL" in p or "150 ML" in p: return "🔸 Textiles Ambar"
-        if "SAHUMERIO" in p: return "🔸 Sahumerios Ambar"
-        return "🔸 Línea Ambar Varios"
-
-    # 4. HOME SPRAY
-    if "HOME SPRAY" in p or "500 ML" in p or "500ML" in p: return "🏠 Home Spray"
-
-    # 5. APARATOS
-    if "APARATO" in p or "HORNILLO" in p: return "⚙️ Aparatos"
-
-    # 6. PREMIUM
-    if "PREMIUM" in p: return "💎 Difusores Premium"
-
-    # 7. SAHUMERIOS
-    if "SAHUMERIO" in p:
-        if "HIERBAS" in p: return "🌿 Sahumerios Hierbas"
-        if "HIMALAYA" in p: return "🏔️ Sahumerios Himalaya"
-        return "🧘 Sahumerios Varios"
-    
-    # 8. AUTOS
-    if "CARITAS" in p: return "😎 Autos - Caritas"
-    if "RUTA" in p or "RUTA 66" in p: return "🛣️ Autos - Ruta 66"
-    if "AUTO" in p: return "🚗 Autos - Varios"
-
-    # 9. ESTÁNDAR Y NUEVOS
-    if "TEXTIL" in p: return "👕 Textiles (250ml)"
-    if "AEROSOL" in p: return "💨 Aerosoles"
-    if "DIFUSOR" in p or "VARILLA" in p: return "🎍 Difusores"
-    if "VELA" in p: return "🕯️ Velas"
-    if "ACEITE" in p: return "💧 Aceites"
-    if "ANTIHUMEDAD" in p: return "💧 Antihumedad"
-    if "LIMPIADOR" in p: return "🧼 Limpiadores Multisuperficies" # Nombre Nuevo
+    for key, config in CATEGORIAS.items():
+        if config['pattern'](p):
+            return f"{config['emoji']} {config['nombre']}"
     
     return "📦 Varios"
 
-# --- 2. ESPECIALISTAS DE LIMPIEZA ---
+# --- REGLAS DE LIMPIEZA ---
+REGLAS_LIMPIEZA = {
+    'general': [
+        (r"\s*[-–]?\s*SAPHIRUS.*$", ""),
+        (r"\s*[-–]?\s*AMBAR.*$", ""),
+        (r"^[-–]\s*", ""),
+        (r"\s*[-–]$", ""),
+    ],
+    'limpiadores': [
+        (r"^LIMPIADOR\s+LIQUIDO\s+MULTISUPERFICIES\s*250\s*ML\s*[-–]?\s*SHINY\s*[-–]?\s*", ""),
+        (r"\s*\d{4,6}$", ""),
+    ],
+    'aceites': [
+        (r"^ACEITE\s+ESENCIAL\s*[-–]?\s*", ""),
+    ],
+    'antihumedad': [
+        (r"ANTI\s+HUMEDAD", ""),
+        (r"SAPHIRUS", ""),
+        (r"[-–]\s*\d+$", ""),
+    ],
+    'perfumes': [
+        (r"PERFUME MINI MILANO\s*[-–]?\s*", ""),
+        (r"SAPHIRUS PARFUM\s*", ""),
+    ],
+    'aparatos': [
+        (r"APARATO ANALOGICO DECO", "ANALOGICO"),
+        (r"HORNILLO CERAMICA", "HORNILLO"),
+    ],
+    'sahumerio_ambar': [
+        (r"^SAHUMERIO\s*[-–]?\s*AMBAR\s*[-–]?\s*", ""),
+    ],
+    'sahumerio_tipo': [
+        (r"^SAHUMERIO HIERBAS\s*[-–]?\s*", ""),
+        (r"^SAHUMERIO HIMALAYA\s*[-–]?\s*", ""),
+        (r"^SAHUMERIO\s*[-–]?\s*", ""),
+    ],
+    'repuesto_touch': [
+        (r"REPUESTO TOUCH\s*(9\s*)?GR/13\s*CM3\s*[-–]?\s*", ""),
+        (r"^REPUESTO TOUCH\s*[-–]?\s*", ""),
+    ],
+    'dispositivo_touch': [
+        (r"^DISPOSITIVO TOUCH\s*(\+)?\s*", ""),
+        (r"\s*\d{6,}$", ""),
+    ],
+    'home_spray': [
+        (r"^HOME SPRAY\s*[-–]?\s*", ""),
+        (r"\s*[-–]?\s*AROMATIZANTE TEXTIL.*$", ""),
+        (r"\s*500\s*ML.*$", ""),
+    ],
+    'textil': [
+        (r"^AROMATIZADOR TEXTIL 150 ML AMBAR\s*[-–]?\s*", ""),
+        (r"^AROMATIZADOR TEXTIL 250 ML\s*[-–]?\s*", ""),
+        (r"^AROMATIZADOR TEXTIL MINI 60 ML\s*[-–]?\s*", ""),
+        (r"^AROMATIZADOR TEXTIL\s*[-–]?\s*", ""),
+    ],
+    'autos': [
+        (r"CARITAS EMOGI X 2", ""),
+        (r"RUTA 66", ""),
+        (r"AROMATIZANTE AUTO", ""),
+        (r"\s*X\s*2.*$", ""),
+    ],
+    'velas': [
+        (r"VELAS SAPHIRUS", "VELAS"),
+    ],
+    'aerosol': [
+        (r"^AEROSOL\s*[-–]?\s*", ""),
+    ],
+    'difusor': [
+        (r"^DIFUSOR AROMATICO\s*[-–]?\s*", ""),
+        (r"^DIFUSOR PREMIUM\s*[-–]?\s*", ""),
+        (r"^DIFUSOR\s*[-–]?\s*", ""),
+        (r"\s*[-–]?\s*VARILLA.*$", ""),
+    ],
+}
 
-def limpiar_general(nombre):
-    n = nombre
-    n = re.sub(r"\s*[-–]?\s*SAPHIRUS.*$", "", n, flags=re.IGNORECASE)
-    n = re.sub(r"\s*[-–]?\s*AMBAR.*$", "", n, flags=re.IGNORECASE)
-    n = n.strip()
-    n = re.sub(r"^[-–]\s*", "", n)
-    n = re.sub(r"\s*[-–]$", "", n)
-    if len(n) < 2: return nombre
-    return n
+def aplicar_reglas(texto, reglas):
+    """Aplica una lista de reglas de regex al texto"""
+    resultado = texto.upper()
+    for patron, reemplazo in reglas:
+        resultado = re.sub(patron, reemplazo, resultado, flags=re.IGNORECASE)
+    return re.sub(r"\s+", " ", resultado).strip()
 
-def limpiar_limpiadores(nombre):
-    n = nombre.upper()
-    # Borrar toda la intro larga hasta "SHINY" y sus guiones
-    n = re.sub(r"^LIMPIADOR\s+LIQUIDO\s+MULTISUPERFICIES\s*250\s*ML\s*[-–]?\s*SHINY\s*[-–]?\s*", "", n)
-    # Borrar códigos numéricos sueltos al final (ej: 88857)
-    n = re.sub(r"\s*\d{4,6}$", "", n)
-    return limpiar_general(n)
-
-def limpiar_aceites(nombre):
-    n = nombre.upper()
-    # Borrar prefijo
-    n = re.sub(r"^ACEITE\s+ESENCIAL\s*[-–]?\s*", "", n)
-    return limpiar_general(n)
-
-def limpiar_antihumedad(nombre):
-    n = nombre.upper()
-    n = re.sub(r"ANTI\s+HUMEDAD", "", n)
-    n = re.sub(r"SAPHIRUS", "", n)
-    n = re.sub(r"[-–]\s*\d+$", "", n)
-    n = re.sub(r"\s+", " ", n).strip()
-    return n
-
-def limpiar_perfumes(nombre):
-    n = nombre.upper()
-    n = re.sub(r"PERFUME MINI MILANO\s*[-–]?\s*", "", n)
-    n = re.sub(r"SAPHIRUS PARFUM\s*", "", n)
-    return limpiar_general(n)
-
-def limpiar_aparatos(nombre):
-    n = nombre.upper()
-    n = re.sub(r"APARATO ANALOGICO DECO", "ANALOGICO", n)
-    n = re.sub(r"HORNILLO CERAMICA", "HORNILLO", n)
-    n = re.sub(r"\s*[-–]?\s*SAPHIRUS.*$", "", n)
-    return n.strip()
-
-def limpiar_sahumerio_ambar(nombre):
-    n = nombre.upper()
-    n = re.sub(r"^SAHUMERIO\s*[-–]?\s*AMBAR\s*[-–]?\s*", "", n)
-    if len(n) < 3: return "SAHUMERIO AMBAR (Generico)"
-    return limpiar_general(n)
-
-def limpiar_sahumerio_tipo(nombre):
-    n = nombre.upper()
-    n = re.sub(r"^SAHUMERIO HIERBAS\s*[-–]?\s*", "", n)
-    n = re.sub(r"^SAHUMERIO HIMALAYA\s*[-–]?\s*", "", n)
-    n = re.sub(r"^SAHUMERIO\s*[-–]?\s*", "", n)
-    return limpiar_general(n)
-
-def limpiar_repuesto_touch(nombre):
-    n = nombre.upper()
-    n = re.sub(r"REPUESTO TOUCH\s*(9\s*)?GR/13\s*CM3\s*[-–]?\s*", "", n)
-    n = re.sub(r"^REPUESTO TOUCH\s*[-–]?\s*", "", n)
-    return limpiar_general(n)
-
-def limpiar_dispositivo_touch(nombre):
-    n = nombre.upper()
-    if "REPUESTO NEGRO" in n: n = n.replace("REPUESTO NEGRO", "NEGRO + REPUESTO")
-    n = re.sub(r"^DISPOSITIVO TOUCH\s*(\+)?\s*", "", n)
-    n = re.sub(r"\s*\d{6,}$", "", n)
-    return limpiar_general(n)
-
-def limpiar_home_spray(nombre):
-    n = nombre.upper()
-    n = re.sub(r"^HOME SPRAY\s*[-–]?\s*", "", n)
-    n = re.sub(r"\s*[-–]?\s*AROMATIZANTE TEXTIL.*$", "", n)
-    n = re.sub(r"\s*500\s*ML.*$", "", n)
-    return limpiar_general(n)
-
-def limpiar_textil(nombre):
-    n = nombre.upper()
-    n = re.sub(r"^AROMATIZADOR TEXTIL 150 ML AMBAR\s*[-–]?\s*", "", n)
-    prefijos = [r"^AROMATIZADOR TEXTIL 250 ML\s*[-–]?\s*", r"^AROMATIZADOR TEXTIL MINI 60 ML\s*[-–]?\s*", r"^AROMATIZADOR TEXTIL\s*[-–]?\s*"]
-    for p in prefijos: n = re.sub(p, "", n)
-    return limpiar_general(n)
-
-def limpiar_autos(nombre):
-    n = nombre.upper()
-    n = re.sub(r"CARITAS EMOGI X 2", "", n)
-    n = re.sub(r"RUTA 66", "", n)
-    n = re.sub(r"AROMATIZANTE AUTO", "", n)
-    n = re.sub(r"\s*X\s*2.*$", "", n)
-    return limpiar_general(n)
-
-def limpiar_velas(nombre):
-    n = nombre.upper()
-    n = re.sub(r"VELAS SAPHIRUS", "VELAS", n)
-    n = re.sub(r"\s*[-–]?\s*SAPHIRUS.*$", "", n)
-    return n.strip()
-
-def limpiar_aerosol(nombre):
-    n = nombre.upper()
-    n = re.sub(r"^AEROSOL\s*[-–]?\s*", "", n)
-    return limpiar_general(n)
-
-def limpiar_difusor(nombre):
-    n = nombre.upper()
-    n = re.sub(r"^DIFUSOR AROMATICO\s*[-–]?\s*", "", n)
-    n = re.sub(r"^DIFUSOR PREMIUM\s*[-–]?\s*", "", n)
-    n = re.sub(r"^DIFUSOR\s*[-–]?\s*", "", n)
-    n = re.sub(r"\s*[-–]?\s*VARILLA.*$", "", n)
-    return limpiar_general(n)
-
-# --- 3. DISPATCHER ---
 def limpiar_producto_por_categoria(row):
+    """Limpia el nombre del producto según su categoría"""
     cat = row["Categoria"]
     nom = row["Producto"]
     
-    # Nuevos mapeos
-    if "Limpiadores" in cat: return limpiar_limpiadores(nom)
-    if "Aceites" in cat: return limpiar_aceites(nom)
+    # Mapeo de categorías a reglas
+    mapeo = {
+        "Limpiadores": 'limpiadores',
+        "Aceites": 'aceites',
+        "Sahumerios Ambar": 'sahumerio_ambar',
+        "Repuestos de Touch": 'repuesto_touch',
+        "Dispositivos Touch": 'dispositivo_touch',
+        "Antihumedad": 'antihumedad',
+        "Perfume": 'perfumes',
+        "Parfum": 'perfumes',
+        "Aparatos": 'aparatos',
+        "Sahumerios": 'sahumerio_tipo',
+        "Home Spray": 'home_spray',
+        "Textiles": 'textil',
+        "Autos": 'autos',
+        "Aerosoles": 'aerosol',
+        "Difusores": 'difusor',
+        "Velas": 'velas',
+    }
     
-    # Mapeos existentes
-    if "Sahumerios Ambar" in cat: return limpiar_sahumerio_ambar(nom)
-    if "Repuestos de Touch" in cat: return limpiar_repuesto_touch(nom)
-    if "Dispositivos Touch" in cat: return limpiar_dispositivo_touch(nom)
-    if "Antihumedad" in cat: return limpiar_antihumedad(nom)
-    if "Perfume" in cat or "Parfum" in cat: return limpiar_perfumes(nom)
-    if "Aparatos" in cat: return limpiar_aparatos(nom)
-    if "Sahumerios" in cat: return limpiar_sahumerio_tipo(nom)
-    if "Home Spray" in cat: return limpiar_home_spray(nom)
-    if "Textiles" in cat: return limpiar_textil(nom)
-    if "Autos" in cat: return limpiar_autos(nom)
-    if "Aerosoles" in cat: return limpiar_aerosol(nom)
-    if "Difusores" in cat: return limpiar_difusor(nom)
-    if "Velas" in cat: return limpiar_velas(nom)
+    # Buscar regla específica
+    for key, regla in mapeo.items():
+        if key in cat:
+            resultado = aplicar_reglas(nom, REGLAS_LIMPIEZA.get(regla, []))
+            resultado = aplicar_reglas(resultado, REGLAS_LIMPIEZA['general'])
+            
+            # Casos especiales
+            if "Touch" in cat and "REPUESTO NEGRO" in resultado:
+                resultado = resultado.replace("REPUESTO NEGRO", "NEGRO + REPUESTO")
+            
+            return resultado if len(resultado) >= 2 else nom
     
-    return limpiar_general(nom)
+    # Limpieza general por defecto
+    return aplicar_reglas(nom, REGLAS_LIMPIEZA['general'])
 
-# --- 4. PROCESAMIENTO ---
-def subir_archivo_robusto(texto_contenido):
+# --- PROCESAMIENTO DE PDF ---
+def extraer_texto_pdf(archivo):
+    """Extrae texto completo del PDF"""
     try:
-        files = {'reqtype': (None, 'fileupload'), 'userhash': (None, ''), 'fileToUpload': ('reposicion.txt', texto_contenido)}
-        response = requests.post('https://catbox.moe/user/api.php', files=files)
-        if response.status_code == 200: return response.text.strip()
+        reader = PdfReader(archivo)
+        texto_completo = ""
+        for i, page in enumerate(reader.pages):
+            try:
+                texto_completo += page.extract_text() + "\n"
+            except Exception as e:
+                logger.warning(f"Error en página {i+1}: {e}")
+                continue
+        return texto_completo.replace("\n", " ")
+    except Exception as e:
+        logger.error(f"Error leyendo PDF: {e}")
         return None
-    except: return None
 
-def procesar_pdf(archivo):
-    reader = PdfReader(archivo)
-    texto_completo = ""
-    for page in reader.pages: texto_completo += page.extract_text() + "\n"
-    texto_limpio = texto_completo.replace("\n", " ")
+def parsear_datos(texto_limpio):
+    """Extrae datos usando patrones regex"""
     datos = []
-
+    
+    # Patrón CSV
     patron_csv = r'"\s*(\d{8})\s*"\s*,\s*"\s*([-0-9,]+)\s+([^"]+)"'
     matches = re.findall(patron_csv, texto_limpio)
+    
     if matches:
-        for m in matches: datos.append({"ID": m[0], "Cantidad": m[1], "Producto": m[2]})
+        for m in matches:
+            datos.append({"ID": m[0], "Cantidad": m[1], "Producto": m[2]})
     else:
+        # Patrón libre
         patron_libre = r'(\d{8})\s+([-0-9]+,\d{2})\s+(.*?)(?=\s\d{1,3}(?:\.\d{3})*,\d{2})'
         matches = re.findall(patron_libre, texto_limpio)
-        for m in matches: datos.append({"ID": m[0], "Cantidad": m[1], "Producto": m[2].strip()})
+        for m in matches:
+            datos.append({"ID": m[0], "Cantidad": m[1], "Producto": m[2].strip()})
+    
+    return datos
 
-    if not datos: return None
-
-    df = pd.DataFrame(datos)
-    df["Cantidad"] = df["Cantidad"].apply(lambda x: float(x.replace(",", ".")) if isinstance(x, str) else x)
-    def limpiar_id(x): return re.sub(r'^\d{8}\s*', '', x.strip())
-    df["Producto"] = df["Producto"].apply(limpiar_id)
+def limpiar_dataframe(df):
+    """Limpia y procesa el DataFrame"""
+    # Convertir cantidad
+    df["Cantidad"] = df["Cantidad"].apply(
+        lambda x: float(x.replace(",", ".")) if isinstance(x, str) else x
+    )
+    
+    # Limpiar IDs del nombre de producto
+    df["Producto"] = df["Producto"].apply(
+        lambda x: re.sub(r'^\d{8}\s*', '', x.strip())
+    )
+    
+    # Filtrar cantidades positivas
     df = df[df["Cantidad"] > 0]
     
+    # Detectar categorías y limpiar nombres
     df["Categoria"] = df["Producto"].apply(detectar_categoria)
     df["Producto"] = df.apply(limpiar_producto_por_categoria, axis=1)
+    
+    # Agrupar y sumar
     df_final = df.groupby(["Categoria", "Producto"], as_index=False)["Cantidad"].sum()
     
     return df_final
 
-# --- INTERFAZ ---
-archivo = st.file_uploader("Subir PDF", type="pdf")
+def procesar_pdf(archivo):
+    """Función principal de procesamiento"""
+    try:
+        # Extraer texto
+        texto_limpio = extraer_texto_pdf(archivo)
+        if not texto_limpio:
+            return None
+        
+        # Parsear datos
+        datos = parsear_datos(texto_limpio)
+        if not datos:
+            logger.warning("No se encontraron datos en el PDF")
+            return None
+        
+        # Crear y limpiar DataFrame
+        df = pd.DataFrame(datos)
+        df_final = limpiar_dataframe(df)
+        
+        return df_final
+    
+    except Exception as e:
+        logger.error(f"Error procesando PDF: {e}")
+        return None
+
+# --- ENVÍO DE MENSAJES ---
+def subir_archivo_robusto(texto_contenido):
+    """Sube archivo a catbox.moe"""
+    try:
+        files = {
+            'reqtype': (None, 'fileupload'),
+            'userhash': (None, ''),
+            'fileToUpload': ('reposicion.txt', texto_contenido)
+        }
+        response = requests.post('https://catbox.moe/user/api.php', files=files, timeout=30)
+        if response.status_code == 200:
+            return response.text.strip()
+        logger.warning(f"Error subiendo archivo: {response.status_code}")
+        return None
+    except Exception as e:
+        logger.error(f"Error en subir_archivo_robusto: {e}")
+        return None
+
+def generar_mensaje(df):
+    """Genera el mensaje de texto formateado"""
+    mensaje_txt = "📋 *LISTA DE REPOSICIÓN*\n"
+    cats = sorted(df["Categoria"].unique())
+    
+    for c in cats:
+        mensaje_txt += f"\n== {c.upper()} ==\n"
+        sub = df[df["Categoria"] == c].sort_values("Producto")
+        for _, r in sub.iterrows():
+            cant = int(r['Cantidad']) if r['Cantidad'].is_integer() else r['Cantidad']
+            mensaje_txt += f"{cant} x {r['Producto']}\n"
+    
+    return mensaje_txt
+
+def enviar_whatsapp(mensaje_txt, credentials):
+    """Envía mensaje por WhatsApp usando Twilio"""
+    if not all([credentials['SID'], credentials['TOK'], credentials['FROM'], credentials['TO']]):
+        st.error("❌ Faltan credenciales de Twilio")
+        return False
+    
+    try:
+        client = Client(credentials['SID'], credentials['TOK'])
+        mensaje_len = len(mensaje_txt)
+        
+        with st.status("📤 Enviando...", expanded=True) as status:
+            if mensaje_len < 1500:
+                # Envío directo
+                status.write("Enviando mensaje directo...")
+                client.messages.create(
+                    body=mensaje_txt,
+                    from_=credentials['FROM'],
+                    to=credentials['TO']
+                )
+                return True
+            else:
+                # Intentar subir archivo
+                status.write("📎 Mensaje largo, generando archivo...")
+                link = subir_archivo_robusto(mensaje_txt)
+                
+                if link:
+                    status.write("✅ Archivo generado, enviando link...")
+                    client.messages.create(
+                        body=f"📄 *Lista Completa*\nDescarga: {link}",
+                        from_=credentials['FROM'],
+                        to=credentials['TO']
+                    )
+                    return True
+                else:
+                    # Enviar por partes
+                    status.write("⚠️ Falló archivo. Enviando por partes...")
+                    trozos = [mensaje_txt[i:i+1500] for i in range(0, mensaje_len, 1500)]
+                    for idx, trozo in enumerate(trozos, 1):
+                        status.write(f"Enviando parte {idx}/{len(trozos)}...")
+                        client.messages.create(
+                            body=trozo,
+                            from_=credentials['FROM'],
+                            to=credentials['TO']
+                        )
+                    return True
+    
+    except Exception as e:
+        logger.error(f"Error enviando WhatsApp: {e}")
+        st.error(f"❌ Error al enviar: {str(e)}")
+        return False
+
+# --- INTERFAZ PRINCIPAL ---
+archivo = st.file_uploader("📄 Subir PDF de Reposición", type="pdf")
 
 if archivo:
-    df_res = procesar_pdf(archivo)
+    with st.spinner("🔄 Procesando PDF..."):
+        df_res = procesar_pdf(archivo)
+    
     if df_res is not None and not df_res.empty:
-        mensaje_txt = "📋 *LISTA DE REPOSICIÓN*\n"
-        cats = sorted(df_res["Categoria"].unique())
-        for c in cats:
-            mensaje_txt += f"\n== {c.upper()} ==\n"
-            sub = df_res[df_res["Categoria"]==c].sort_values("Producto")
-            for _, r in sub.iterrows():
-                cant = int(r['Cantidad']) if r['Cantidad'].is_integer() else r['Cantidad']
-                mensaje_txt += f"{cant} x {r['Producto']}\n"
-        
+        # Generar mensaje
+        mensaje_txt = generar_mensaje(df_res)
         total = len(df_res)
-        l = len(mensaje_txt)
-        st.success(f"✅ {total} artículos.")
-        st.text_area("Vista previa:", mensaje_txt, height=500)
         
-        if st.button("🚀 Enviar a WhatsApp", type="primary"):
-            if not SID or not TOK:
-                st.error("Faltan credenciales")
-                st.stop()
-            client = Client(SID, TOK)
-            enviado = False
-            with st.status("Enviando...", expanded=True) as status:
-                if l < 1500:
-                    try:
-                        client.messages.create(body=mensaje_txt, from_=FROM, to=TO)
-                        enviado = True
-                    except Exception as e: st.error(f"Error: {e}")
-                else:
-                    status.write("Generando archivo...")
-                    link = subir_archivo_robusto(mensaje_txt)
-                    if link:
-                        client.messages.create(body=f"📄 *Lista Completa*\nDescarga: {link}", from_=FROM, to=TO)
-                        enviado = True
-                    else:
-                        status.write("⚠️ Falló archivo. Enviando por partes...")
-                        trozos = [mensaje_txt[i:i+1500] for i in range(0, l, 1500)]
-                        for t in trozos: client.messages.create(body=t, from_=FROM, to=TO)
-                        enviado = True
-            if enviado:
+        # Mostrar resultados
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("📦 Total de artículos", total)
+        with col2:
+            st.metric("📏 Caracteres", len(mensaje_txt))
+        
+        st.success(f"✅ Archivo procesado correctamente")
+        
+        # Vista previa
+        with st.expander("👁️ Vista previa del mensaje", expanded=True):
+            st.text_area("", mensaje_txt, height=400, label_visibility="collapsed")
+        
+        # Botón de envío
+        if st.button("🚀 Enviar a WhatsApp", type="primary", use_container_width=True):
+            if enviar_whatsapp(mensaje_txt, credentials):
                 st.balloons()
-                st.success("¡Enviado!")
-    else: st.error("Error leyendo PDF.")
+                st.success("✅ ¡Mensaje enviado exitosamente!")
+    else:
+        st.error("❌ No se pudieron extraer datos del PDF. Verifica el formato del archivo.")
+else:
+    st.info("👆 Sube un archivo PDF para comenzar")
+
+# Footer
+st.markdown("---")
+st.caption("Repositor Saphirus 18.0 | Mejorado con mejor manejo de errores y modularidad")
