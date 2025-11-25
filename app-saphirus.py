@@ -29,7 +29,7 @@ def cargar_credenciales():
             st.success("Credenciales OK 🔒")
             return credentials
         except Exception as e:
-            logger.warning(f"No se pudieron cargar secrets: {e}")
+            # logger.warning(f"No se pudieron cargar secrets: {e}") # Comentado para no ensuciar logs
             st.warning("Faltan secrets - Ingresa credenciales manualmente")
             return {
                 'SID': st.text_input("SID", type="password"),
@@ -41,6 +41,7 @@ def cargar_credenciales():
 credentials = cargar_credenciales()
 
 # --- PATRONES DE CATEGORIZACIÓN ---
+# IMPORTANTE: El orden importa. Las reglas más específicas deben ir primero.
 CATEGORIAS = {
     # Touch
     'touch_dispositivo': {'pattern': lambda p: "DISPOSITIVO" in p and "TOUCH" in p, 'emoji': "🖱️", 'nombre': "Dispositivos Touch"},
@@ -56,6 +57,9 @@ CATEGORIAS = {
     'ambar_sahumerio': {'pattern': lambda p: "AMBAR" in p and "SAHUMERIO" in p, 'emoji': "🔸", 'nombre': "Sahumerios Ambar"},
     'ambar_varios': {'pattern': lambda p: "AMBAR" in p, 'emoji': "🔸", 'nombre': "Línea Ambar Varios"},
     
+    # Shiny General (NUEVO - Antes de Home Spray por el tema de "500 ML")
+    'shiny_general': {'pattern': lambda p: "SHINY" in p and ("LIMPIAVIDRIOS" in p or "DESENGRASANTE" in p or "LUSTRAMUEBLE" in p), 'emoji': "✨", 'nombre': "Shiny General"},
+
     # Home Spray
     'home_spray': {'pattern': lambda p: "HOME SPRAY" in p or "500 ML" in p or "500ML" in p, 'emoji': "🏠", 'nombre': "Home Spray"},
     
@@ -76,8 +80,8 @@ CATEGORIAS = {
     'auto_varios': {'pattern': lambda p: "AUTO" in p, 'emoji': "🚗", 'nombre': "Autos - Varios"},
     
     # Estándar
-    'textil': {'pattern': lambda p: "TEXTIL" in p, 'emoji': "👕", 'nombre': "Textiles (250ml)"},
-    'aerosol': {'pattern': lambda p: "AEROSOL" in p, 'emoji': "💨", 'nombre': "Aerosoles"},
+    'textil': {'pattern': lambda p: "TEXTIL" in p, 'emoji': "👕", 'nombre': "Textiles Saphirus"}, # NOMBRE CAMBIADO
+    'aerosol': {'pattern': lambda p: "AEROSOL" in p, 'emoji': "💨", 'nombre': "Aerosoles Saphirus"}, # NOMBRE CAMBIADO
     'difusor': {'pattern': lambda p: "DIFUSOR" in p or "VARILLA" in p, 'emoji': "🎍", 'nombre': "Difusores"},
     'vela': {'pattern': lambda p: "VELA" in p, 'emoji': "🕯️", 'nombre': "Velas"},
     'aceite': {'pattern': lambda p: "ACEITE" in p, 'emoji': "💧", 'nombre': "Aceites"},
@@ -102,6 +106,11 @@ REGLAS_LIMPIEZA = {
         (r"\s*[-–]?\s*AMBAR.*$", ""),
         (r"^[-–]\s*", ""),
         (r"\s*[-–]$", ""),
+    ],
+    'shiny_general': [
+        (r"^LIMPIAVIDRIOS.*$", "LIMPIAVIDRIOS"), # Fuerza el nombre exacto
+        (r"^DESENGRASANTE.*$", "DESENGRASANTE"),
+        (r"^LUSTRAMUEBLE.*$", "LUSTRAMUEBLE"),
     ],
     'limpiadores': [
         (r"^LIMPIADOR\s+LIQUIDO\s+MULTISUPERFICIES\s*250\s*ML\s*[-–]?\s*SHINY\s*[-–]?\s*", ""),
@@ -132,7 +141,8 @@ REGLAS_LIMPIEZA = {
         (r"^SAHUMERIO\s*[-–]?\s*", ""),
     ],
     'repuesto_touch': [
-        (r"REPUESTO TOUCH\s*(9\s*)?GR/13\s*CM3\s*[-–]?\s*", ""),
+        # Regex mejorada para borrar "9 GR /13CM3" con espacios variables
+        (r"REPUESTO TOUCH\s*(\d+\s*GR)?\s*[-/]?\s*\d+\s*CM3\s*[-–]?\s*", ""),
         (r"^REPUESTO TOUCH\s*[-–]?\s*", ""),
     ],
     'dispositivo_touch': [
@@ -163,6 +173,8 @@ REGLAS_LIMPIEZA = {
         (r"^AEROSOL\s*[-–]?\s*", ""),
     ],
     'difusor': [
+        (r"\s*[-–]?\s*AROMATICO\s*VARILLA.*$", ""), # Borra "AROMATICO VARILLA"
+        (r"\s*[-–]?\s*AROMATICO.*$", ""),         # Borra " - AROMATICO" (NUEVO)
         (r"^DIFUSOR AROMATICO\s*[-–]?\s*", ""),
         (r"^DIFUSOR PREMIUM\s*[-–]?\s*", ""),
         (r"^DIFUSOR\s*[-–]?\s*", ""),
@@ -184,6 +196,7 @@ def limpiar_producto_por_categoria(row):
     
     # Mapeo de categorías a reglas
     mapeo = {
+        "Shiny General": 'shiny_general',
         "Limpiadores": 'limpiadores',
         "Aceites": 'aceites',
         "Sahumerios Ambar": 'sahumerio_ambar',
@@ -205,10 +218,14 @@ def limpiar_producto_por_categoria(row):
     # Buscar regla específica
     for key, regla in mapeo.items():
         if key in cat:
+            # Casos especiales Shiny (Reemplazo total)
+            if regla == 'shiny_general':
+                return aplicar_reglas(nom, REGLAS_LIMPIEZA['shiny_general'])
+
             resultado = aplicar_reglas(nom, REGLAS_LIMPIEZA.get(regla, []))
             resultado = aplicar_reglas(resultado, REGLAS_LIMPIEZA['general'])
             
-            # Casos especiales
+            # Casos especiales Touch
             if "Touch" in cat and "REPUESTO NEGRO" in resultado:
                 resultado = resultado.replace("REPUESTO NEGRO", "NEGRO + REPUESTO")
             
@@ -238,7 +255,7 @@ def parsear_datos(texto_limpio):
     """Extrae datos usando patrones regex"""
     datos = []
     
-    # Patrón CSV
+    # Patrón CSV (Comillas)
     patron_csv = r'"\s*(\d{8})\s*"\s*,\s*"\s*([-0-9,]+)\s+([^"]+)"'
     matches = re.findall(patron_csv, texto_limpio)
     
@@ -246,7 +263,7 @@ def parsear_datos(texto_limpio):
         for m in matches:
             datos.append({"ID": m[0], "Cantidad": m[1], "Producto": m[2]})
     else:
-        # Patrón libre
+        # Patrón libre (Rescate)
         patron_libre = r'(\d{8})\s+([-0-9]+,\d{2})\s+(.*?)(?=\s\d{1,3}(?:\.\d{3})*,\d{2})'
         matches = re.findall(patron_libre, texto_limpio)
         for m in matches:
@@ -422,5 +439,4 @@ else:
 
 # Footer
 st.markdown("---")
-st.caption("Repositor Saphirus 18.0 | Mejorado con mejor manejo de errores y modularidad")
-
+st.caption("Repositor Saphirus 19.0 | Actualizado con categoría Shiny y limpieza Premium")
