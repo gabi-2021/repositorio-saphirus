@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Repositor Saphirus", page_icon="✨", layout="centered")
-st.title("✨ Repositor Saphirus 18.0")
+st.title("✨ Repositor Saphirus 19.0")
 
 # --- CREDENCIALES ---
 def cargar_credenciales():
@@ -423,3 +423,4 @@ else:
 # Footer
 st.markdown("---")
 st.caption("Repositor Saphirus 18.0 | Mejorado con mejor manejo de errores y modularidad")
+
