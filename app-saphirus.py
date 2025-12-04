@@ -4,7 +4,7 @@ import re
 from pypdf import PdfReader
 from twilio.rest import Client
 import logging
-import uuid # Para generar IDs únicos para los botones
+import uuid
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
@@ -12,26 +12,24 @@ logger = logging.getLogger(__name__)
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Repositor Saphirus", page_icon="✨", layout="centered")
-st.title("✨ Repositor Saphirus 23.0")
+st.title("✨ Repositor Saphirus 23.1")
 
-# --- ESTILOS CSS PERSONALIZADOS (Para que los botones se parezcan a la imagen) ---
+# --- ESTILOS CSS PERSONALIZADOS ---
 st.markdown("""
 <style>
     .stButton button {
         width: 100%;
-        padding: 0px;
+        border-radius: 5px;
     }
-    /* Estilo para resaltar la fila activa */
-    .row-widget {
-        border-bottom: 1px solid #f0f2f6;
-        padding: 10px 0;
+    div[data-testid="column"] {
+        text-align: center;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # --- GESTIÓN DE ESTADO (SESSION STATE) ---
 if 'audit_data' not in st.session_state:
-    st.session_state.audit_data = [] # Lista de objetos {id, cat, prod, cant, status}
+    st.session_state.audit_data = [] 
 if 'audit_started' not in st.session_state:
     st.session_state.audit_started = False
 
@@ -48,6 +46,7 @@ def cargar_credenciales():
             }
             return credentials
         except Exception:
+            # Fallback inputs si no hay secrets
             return {
                 'SID': st.text_input("SID", type="password"),
                 'TOK': st.text_input("Token", type="password"),
@@ -57,7 +56,7 @@ def cargar_credenciales():
 
 credentials = cargar_credenciales()
 
-# --- PATRONES DE CATEGORIZACIÓN (Igual que antes) ---
+# --- PATRONES DE CATEGORIZACIÓN ---
 CATEGORIAS = {
     'touch_dispositivo': {'pattern': lambda p: "DISPOSITIVO" in p and "TOUCH" in p, 'emoji': "🖱️", 'nombre': "Dispositivos Touch"},
     'touch_repuesto': {'pattern': lambda p: ("REPUESTO" in p and "TOUCH" in p) or "GR/13" in p, 'emoji': "🔄", 'nombre': "Repuestos de Touch"},
@@ -94,7 +93,7 @@ def detectar_categoria(producto):
             return f"{config['emoji']} {config['nombre']}"
     return "📦 Varios"
 
-# --- REGLAS DE LIMPIEZA (Simplificado para brevedad, igual que v22) ---
+# --- REGLAS DE LIMPIEZA ---
 REGLAS_LIMPIEZA = {
     'general': [(r"\s*[-–]?\s*SAPHIRUS.*$", ""), (r"\s*[-–]?\s*AMBAR.*$", ""), (r"^[-–]\s*", ""), (r"\s*[-–]$", "")],
     'shiny_general': [(r"^LIMPIAVIDRIOS.*", "LIMPIAVIDRIOS"), (r"^DESENGRASANTE.*", "DESENGRASANTE"), (r"^LUSTRAMUEBLES?.*", "LUSTRAMUEBLE")],
@@ -156,10 +155,14 @@ def extraer_texto_pdf(archivo):
 
 def parsear_datos(texto):
     datos = []
+    # Intenta formato CSV primero
     matches = re.findall(r'"\s*(\d{8})\s*"\s*,\s*"\s*([-0-9,]+)\s+([^"]+)"', texto)
     if not matches:
+        # Intenta formato Libre
         matches = re.findall(r'(\d{8})\s+([-0-9]+,\d{2})\s+(.*?)(?=\s\d{1,3}(?:\.\d{3})*,\d{2})', texto)
-    for m in matches: datos.append({"ID": m[0], "Cantidad": m[1], "Producto": m[2].strip()})
+    
+    for m in matches:
+        datos.append({"ID": m[0], "Cantidad": m[1], "Producto": m[2].strip()})
     return datos
 
 def limpiar_dataframe(df):
@@ -170,9 +173,21 @@ def limpiar_dataframe(df):
     df["Producto"] = df.apply(limpiar_producto_por_categoria, axis=1)
     return df.groupby(["Categoria", "Producto"], as_index=False)["Cantidad"].sum()
 
+def procesar_pdf(archivo):
+    """Función principal que orquesta la lectura del PDF"""
+    try:
+        texto = extraer_texto_pdf(archivo)
+        if not texto: return None
+        datos = parsear_datos(texto)
+        if not datos: return None
+        df = pd.DataFrame(datos)
+        return limpiar_dataframe(df)
+    except Exception as e:
+        logger.error(f"Error en procesar_pdf: {e}")
+        return None
+
 # --- FUNCIONES AUDITORIA ---
 def preparar_datos_auditoria(texto_lista):
-    """Convierte el texto de la lista en una estructura plana para la app de auditoría"""
     items = []
     categoria_actual = "General"
     lineas = texto_lista.split('\n')
@@ -195,7 +210,7 @@ def preparar_datos_auditoria(texto_lista):
                     "categoria": categoria_actual,
                     "producto": prod,
                     "cantidad": cant,
-                    "status": None # None, 'pedido', 'repuesto', 'pendiente'
+                    "status": None 
                 })
             except: continue
     return items
@@ -207,7 +222,7 @@ def actualizar_estado(item_id, nuevo_estado):
             break
 
 def generar_listas_finales(data):
-    pedido_web = {} # {Cat: [items]}
+    pedido_web = {} 
     reponido = {}
     pendiente = {}
     
@@ -264,34 +279,71 @@ tab1, tab2, tab3 = st.tabs(["📄 Procesar PDF", "➕ Sumar Listas", "✅ Audito
 with tab1:
     archivo = st.file_uploader("Subir PDF", type="pdf")
     if archivo:
-        df = procesar_pdf(archivo) if 'procesar_pdf' not in globals() else pd.DataFrame() # Hack para evitar redefinir
-        # Usamos la logica directa
-        try:
-            texto = extraer_texto_pdf(archivo)
-            datos = parsear_datos(texto) if texto else []
-            if datos:
-                df = limpiar_dataframe(pd.DataFrame(datos))
-                msg = generar_mensaje_df(df)
-                st.code(msg, language='text')
+        # AHORA SÍ: Llamada segura a la función reincorporada
+        df_res = procesar_pdf(archivo)
+        
+        if df_res is not None and not df_res.empty:
+            msg = generar_mensaje_df(df_res)
+            st.code(msg, language='text')
+            
+            if len(msg) > 1500:
+                st.warning("⚠️ Mensaje muy largo para WhatsApp directo.")
+            else:
                 if st.button("Enviar PDF a WhatsApp"):
-                    if enviar_whatsapp(msg, credentials): st.success("Enviado")
-            else: st.error("No se leyeron datos")
-        except: st.error("Error procesando")
+                    if enviar_whatsapp(msg, credentials): 
+                        st.success("Enviado")
+        else:
+            st.error("No se pudieron extraer datos. Verifica el PDF.")
 
-# TAB 2: SUMA (Simplificado, misma lógica anterior)
+# TAB 2: SUMA
 with tab2:
+    st.info("Pega dos listas para sumarlas.")
     c1, c2 = st.columns(2)
     l1 = c1.text_area("Lista 1")
     l2 = c2.text_area("Lista 2")
+    
     if st.button("Unificar"):
-        # Lógica simplificada de unión para no repetir todo el código anterior aquí
-        # En producción usarías las funciones definidas en el paso anterior
-        st.info("Función de suma disponible (ver código anterior para implementación completa)")
+        # Importamos lógica de parseo simple aquí para no depender de bloques externos
+        def parse_simple(txt):
+            d = {}
+            cat = "General"
+            for line in txt.split('\n'):
+                line = line.strip()
+                if "==" in line: cat = line.replace("==", "").strip()
+                elif " x " in line:
+                    p = line.split(" x ", 1)
+                    try:
+                        c = float(p[0])
+                        prod = p[1]
+                        if cat not in d: d[cat] = {}
+                        d[cat][prod] = d[cat].get(prod, 0) + c
+                    except: pass
+            return d
 
-# TAB 3: AUDITORÍA (NUEVA FUNCIONALIDAD)
+        d1 = parse_simple(l1)
+        d2 = parse_simple(l2)
+        
+        # Merge
+        total = d1.copy()
+        for c, prods in d2.items():
+            if c not in total: total[c] = {}
+            for p, qty in prods.items():
+                total[c][p] = total[c].get(p, 0) + qty
+        
+        # Print
+        txt_fin = "📋 *LISTA SUMADA*\n"
+        for c in sorted(total.keys()):
+            txt_fin += f"\n== {c} ==\n"
+            for p in sorted(total[c].keys()):
+                q = total[c][p]
+                q_fmt = int(q) if q.is_integer() else q
+                txt_fin += f"{q_fmt} x {p}\n"
+        
+        st.code(txt_fin, language='text')
+
+# TAB 3: AUDITORÍA
 with tab3:
     st.header("🕵️ Auditoría de Reposición")
-    st.caption("Pega tu lista, y clasifica cada ítem: ¿Falta stock? ¿Se repuso? ¿Quedó pendiente?")
     
     if not st.session_state.audit_started:
         input_audit = st.text_area("Pega la lista generada aquí:", height=200, placeholder="== CATEGORIA ==\n1 x PRODUCTO")
@@ -304,87 +356,62 @@ with tab3:
                 st.warning("Pega una lista primero")
     
     else:
-        # BOTÓN RESET
         if st.button("🔄 Reiniciar Auditoría", type="secondary"):
             st.session_state.audit_started = False
             st.session_state.audit_data = []
             st.rerun()
             
-        st.progress(len([x for x in st.session_state.audit_data if x['status']]) / len(st.session_state.audit_data) if st.session_state.audit_data else 0)
-
-        # MOSTRAR ITEMS
+        completed = len([x for x in st.session_state.audit_data if x['status']])
+        total = len(st.session_state.audit_data)
+        if total > 0:
+            st.progress(completed / total)
+        
         st.markdown("---")
         
-        # Agrupar por categoría visualmente
-        categorias = sorted(list(set([x['categoria'] for x in st.session_state.audit_data])))
+        # Agrupar por categoría
+        cats = sorted(list(set([x['categoria'] for x in st.session_state.audit_data])))
         
-        for cat in categorias:
+        for cat in cats:
             with st.expander(f"📂 {cat}", expanded=True):
-                items_cat = [x for x in st.session_state.audit_data if x['categoria'] == cat]
-                
-                for item in items_cat:
-                    c_info, c_btn1, c_btn2, c_btn3 = st.columns([3, 1, 1, 1])
+                items = [x for x in st.session_state.audit_data if x['categoria'] == cat]
+                for item in items:
+                    # Layout visual similar a la imagen solicitada
+                    c1, c2, c3, c4 = st.columns([4, 1, 1, 1])
                     
-                    # Columna Información
-                    with c_info:
-                        icon_status = "⬜"
-                        if item['status'] == 'pedido': icon_status = "📉 (Falta)"
-                        elif item['status'] == 'repuesto': icon_status = "✅ (Listo)"
-                        elif item['status'] == 'pendiente': icon_status = "❌ (Pendiente)"
-                        
+                    with c1:
                         st.markdown(f"**{item['cantidad']} x {item['producto']}**")
-                        if item['status']:
-                            st.caption(f"Estado: {icon_status}")
-
-                    # Botones (Solo si no tiene estado o para cambiarlo)
-                    # Usamos keys únicos con UUID
-                    with c_btn1:
-                        if st.button("📉 Sin Stock", key=f"btn_ped_{item['id']}", help="Agregar a pedido web"):
+                        if item['status'] == 'pedido': st.caption("❌ Sin Stock (A Pedido)")
+                        elif item['status'] == 'repuesto': st.caption("✅ Repuesto")
+                        elif item['status'] == 'pendiente': st.caption("⚠️ No necesario / Pendiente")
+                    
+                    # Botones con iconos
+                    with c2:
+                        if st.button("📦📉", key=f"p_{item['id']}", help="Sin Stock"):
                             actualizar_estado(item['id'], 'pedido')
                             st.rerun()
-                    with c_btn2:
-                        if st.button("✅ Repuesto", key=f"btn_rep_{item['id']}", help="Ya se puso en estante"):
+                    with c3:
+                        if st.button("✅", key=f"r_{item['id']}", help="Repuesto"):
                             actualizar_estado(item['id'], 'repuesto')
                             st.rerun()
-                    with c_btn3:
-                        if st.button("❌ No Repus.", key=f"btn_pen_{item['id']}", help="No se llegó a reponer/saltar"):
+                    with c4:
+                        if st.button("❌", key=f"n_{item['id']}", help="No necesario"):
                             actualizar_estado(item['id'], 'pendiente')
                             st.rerun()
-                    
                     st.divider()
 
-        # RESULTADOS FINALES
-        st.header("📊 Resultados Generados")
-        list_ped, list_rep, list_pen = generar_listas_finales(st.session_state.audit_data)
+        st.header("📊 Listas Finales")
+        lp, lr, lpen = generar_listas_finales(st.session_state.audit_data)
         
-        txt_pedido = formatear_lista_texto(list_ped, "FALTA STOCK / PEDIDO WEB")
-        txt_reponido = formatear_lista_texto(list_rep, "LO QUE SE REPUSO HOY")
-        txt_pendiente = formatear_lista_texto(list_pen, "PENDIENTE / FALTÓ REPONER")
-        
-        col_res1, col_res2, col_res3 = st.columns(3)
-        
-        with col_res1:
-            st.subheader("📉 Pedido Web")
-            if txt_pedido:
-                st.code(txt_pedido, language='text')
-            else: st.info("Vacío")
-            
-        with col_res2:
+        c_res1, c_res2, c_res3 = st.columns(3)
+        with c_res1: 
+            st.subheader("📉 Pedido")
+            st.code(formatear_lista_texto(lp, "Pedido Web"), language='text')
+        with c_res2: 
             st.subheader("✅ Repuesto")
-            if txt_reponido:
-                st.code(txt_reponido, language='text')
-            else: st.info("Vacío")
-
-        with col_res3:
+            st.code(formatear_lista_texto(lr, "Repuesto Hoy"), language='text')
+        with c_res3: 
             st.subheader("❌ Pendiente")
-            if txt_pendiente:
-                st.code(txt_pendiente, language='text')
-            else: st.info("Vacío")
-            
-        if st.button("📤 Enviar Todo a WhatsApp (Consolidado)"):
-             msg_final = f"{txt_pedido}\n\n{txt_reponido}\n\n{txt_pendiente}"
-             if enviar_whatsapp(msg_final, credentials):
-                 st.success("Enviado reporte completo")
+            st.code(formatear_lista_texto(lpen, "Pendientes"), language='text')
 
 st.markdown("---")
-st.caption("Repositor Saphirus 23.0")
+st.caption("Repositor Saphirus 23.1")
