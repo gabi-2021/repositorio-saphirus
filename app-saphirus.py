@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import re
-import requests
 from pypdf import PdfReader
 from twilio.rest import Client
 import logging
@@ -40,7 +39,6 @@ def cargar_credenciales():
 credentials = cargar_credenciales()
 
 # --- PATRONES DE CATEGORIZACIÓN ---
-# EL ORDEN IMPORTA: Las reglas más específicas deben ir primero.
 CATEGORIAS = {
     # Touch
     'touch_dispositivo': {'pattern': lambda p: "DISPOSITIVO" in p and "TOUCH" in p, 'emoji': "🖱️", 'nombre': "Dispositivos Touch"},
@@ -82,7 +80,7 @@ CATEGORIAS = {
     'auto_ruta': {'pattern': lambda p: "RUTA" in p or "RUTA 66" in p, 'emoji': "🛣️", 'nombre': "Autos - Ruta 66"},
     'auto_varios': {'pattern': lambda p: "AUTO" in p, 'emoji': "🚗", 'nombre': "Autos - Varios"},
     
-    # Textiles Mini (NUEVO - Antes de Textil estándar)
+    # Textiles Mini
     'textil_mini': {'pattern': lambda p: "TEXTIL" in p and "MINI" in p, 'emoji': "🤏", 'nombre': "Textiles Mini"},
 
     # Estándar
@@ -96,7 +94,6 @@ CATEGORIAS = {
 }
 
 def detectar_categoria(producto):
-    """Detecta la categoría del producto usando patrones configurables"""
     p = producto.upper()
     for key, config in CATEGORIAS.items():
         if config['pattern'](p):
@@ -126,12 +123,10 @@ REGLAS_LIMPIEZA = {
     ],
     'home_spray': [
         (r"^HOME SPRAY\s*[-–]?\s*", ""),
-        # CORREGIDO: Borra "AROMATIZANTE TEXTIL" aunque no tenga guion antes
         (r"\s*[-–]?\s*AROMATIZANTE\s+TEXTIL.*$", ""), 
         (r"\s*500\s*ML.*$", ""),
     ],
     'repuesto_touch': [
-        # CORREGIDO: Hace opcional el número inicial para casos como "GR/13 CM3"
         (r"(\d+\s*)?GR.*?CM3\s*[-–]?\s*", ""), 
         (r"^REPUESTO TOUCH\s*[-–]?\s*", ""),
     ],
@@ -146,7 +141,6 @@ REGLAS_LIMPIEZA = {
         (r"SAPHIRUS PARFUM\s*", ""),
     ],
     'aparatos': [
-        # NUEVAS REGLAS DE SIMPLIFICACIÓN TOTAL
         (r".*LATERAL.*", "LATERAL"),
         (r".*FRONTAL.*", "FRONTAL"),
         (r".*DIGITAL.*", "DIGITAL"),
@@ -156,7 +150,7 @@ REGLAS_LIMPIEZA = {
         (r".*BEIGE.*", "BEIGE"),
         (r".*BLANCO.*", "BLANCO"),
         (r".*HORNILLO.*", "HORNILLO CHICO"),
-        (r"APARATO ANALOGICO DECO", "ANALOGICO"), # Fallback
+        (r"APARATO ANALOGICO DECO", "ANALOGICO"),
     ],
     'sahumerio_ambar': [(r"^SAHUMERIO\s*[-–]?\s*AMBAR\s*[-–]?\s*", "")],
     'sahumerio_tipo': [
@@ -168,13 +162,13 @@ REGLAS_LIMPIEZA = {
         (r"^DISPOSITIVO TOUCH\s*(\+)?\s*", ""),
         (r"\s*\d{6,}$", ""),
     ],
-    'textil_mini': [ # NUEVA REGLA
+    'textil_mini': [
         (r"^AROMATIZADOR TEXTIL MINI 60 ML\s*[-–]?\s*", ""),
     ],
     'textil': [
         (r"^AROMATIZADOR TEXTIL 150 ML AMBAR\s*[-–]?\s*", ""),
         (r"^AROMATIZADOR TEXTIL 250 ML\s*[-–]?\s*", ""),
-        (r"^AROMATIZADOR TEXTIL MINI 60 ML\s*[-–]?\s*", ""), # Por seguridad
+        (r"^AROMATIZADOR TEXTIL MINI 60 ML\s*[-–]?\s*", ""),
         (r"^AROMATIZADOR TEXTIL\s*[-–]?\s*", ""),
     ],
     'autos': [
@@ -193,18 +187,15 @@ REGLAS_LIMPIEZA = {
 }
 
 def aplicar_reglas(texto, reglas):
-    """Aplica una lista de reglas de regex al texto"""
     resultado = texto.upper()
     for patron, reemplazo in reglas:
         resultado = re.sub(patron, reemplazo, resultado, flags=re.IGNORECASE)
     return re.sub(r"\s+", " ", resultado).strip()
 
 def limpiar_producto_por_categoria(row):
-    """Limpia el nombre del producto según su categoría"""
     cat = row["Categoria"]
     nom = row["Producto"]
     
-    # Mapeo de categorías a reglas
     mapeo = {
         "Shiny General": 'shiny_general',
         "Limpiadores": 'limpiadores',
@@ -219,7 +210,7 @@ def limpiar_producto_por_categoria(row):
         "Aparatos": 'aparatos',
         "Sahumerios": 'sahumerio_tipo',
         "Home Spray": 'home_spray',
-        "Textiles Mini": 'textil_mini', # NUEVO MAPEO
+        "Textiles Mini": 'textil_mini',
         "Textiles": 'textil',
         "Autos": 'autos',
         "Aerosoles": 'aerosol',
@@ -227,18 +218,13 @@ def limpiar_producto_por_categoria(row):
         "Velas": 'velas',
     }
     
-    # Buscar regla específica
     for key, regla in mapeo.items():
         if key in cat:
-            # Casos especiales Shiny (Reemplazo total)
             if regla == 'shiny_general':
                 return aplicar_reglas(nom, REGLAS_LIMPIEZA['shiny_general'])
 
-            # Casos especiales Aparatos (Reemplazo total priorizado)
             if regla == 'aparatos':
-                 # Aplicamos directamente para que si encuentra match reemplace todo
                  res = aplicar_reglas(nom, REGLAS_LIMPIEZA['aparatos'])
-                 # Si no cambió (no entró en reglas agresivas), limpiamos lo básico
                  if res == nom: 
                      res = res.replace("APARATO ANALOGICO DECO", "ANALOGICO")
                  return res
@@ -246,7 +232,6 @@ def limpiar_producto_por_categoria(row):
             resultado = aplicar_reglas(nom, REGLAS_LIMPIEZA.get(regla, []))
             resultado = aplicar_reglas(resultado, REGLAS_LIMPIEZA['general'])
             
-            # Casos especiales Touch
             if "Touch" in cat and "REPUESTO NEGRO" in resultado:
                 resultado = resultado.replace("REPUESTO NEGRO", "NEGRO + REPUESTO")
             
@@ -307,14 +292,6 @@ def procesar_pdf(archivo):
         return None
 
 # --- ENVÍO DE MENSAJES ---
-def subir_archivo_robusto(texto_contenido):
-    try:
-        files = {'reqtype': (None, 'fileupload'), 'userhash': (None, ''), 'fileToUpload': ('reposicion.txt', texto_contenido)}
-        response = requests.post('https://catbox.moe/user/api.php', files=files, timeout=30)
-        if response.status_code == 200: return response.text.strip()
-        return None
-    except Exception: return None
-
 def generar_mensaje(df):
     mensaje_txt = "📋 *LISTA DE REPOSICIÓN*\n"
     cats = sorted(df["Categoria"].unique())
@@ -327,30 +304,17 @@ def generar_mensaje(df):
     return mensaje_txt
 
 def enviar_whatsapp(mensaje_txt, credentials):
+    # Función simplificada: Solo envía si es seguro
     if not all([credentials['SID'], credentials['TOK'], credentials['FROM'], credentials['TO']]):
         st.error("❌ Faltan credenciales de Twilio")
         return False
     try:
         client = Client(credentials['SID'], credentials['TOK'])
-        mensaje_len = len(mensaje_txt)
         with st.status("📤 Enviando...", expanded=True) as status:
-            if mensaje_len < 1500:
-                status.write("Enviando mensaje directo...")
-                client.messages.create(body=mensaje_txt, from_=credentials['FROM'], to=credentials['TO'])
-                return True
-            else:
-                status.write("📎 Mensaje largo, generando archivo...")
-                link = subir_archivo_robusto(mensaje_txt)
-                if link:
-                    status.write("✅ Archivo generado, enviando link...")
-                    client.messages.create(body=f"📄 *Lista Completa*\nDescarga: {link}", from_=credentials['FROM'], to=credentials['TO'])
-                    return True
-                else:
-                    status.write("⚠️ Falló archivo. Enviando por partes...")
-                    trozos = [mensaje_txt[i:i+1500] for i in range(0, mensaje_len, 1500)]
-                    for idx, trozo in enumerate(trozos, 1):
-                        client.messages.create(body=trozo, from_=credentials['FROM'], to=credentials['TO'])
-                    return True
+            status.write("Conectando con Twilio...")
+            client.messages.create(body=mensaje_txt, from_=credentials['FROM'], to=credentials['TO'])
+            status.update(label="✅ Mensaje enviado", state="complete", expanded=False)
+            return True
     except Exception as e:
         st.error(f"❌ Error al enviar: {str(e)}")
         return False
@@ -364,22 +328,38 @@ if archivo:
     
     if df_res is not None and not df_res.empty:
         mensaje_txt = generar_mensaje(df_res)
-        total = len(df_res)
+        largo_mensaje = len(mensaje_txt)
+        total_arts = len(df_res)
+
+        # Métricas
         col1, col2 = st.columns(2)
-        with col1: st.metric("📦 Total de artículos", total)
-        with col2: st.metric("📏 Caracteres", len(mensaje_txt))
+        with col1: st.metric("📦 Total de artículos", total_arts)
+        with col2: st.metric("📏 Caracteres", largo_mensaje)
+        
         st.success(f"✅ Archivo procesado correctamente")
-        with st.expander("👁️ Vista previa del mensaje", expanded=True):
-            st.text_area("", mensaje_txt, height=400, label_visibility="collapsed")
-        if st.button("🚀 Enviar a WhatsApp", type="primary", use_container_width=True):
-            if enviar_whatsapp(mensaje_txt, credentials):
-                st.balloons()
-                st.success("✅ ¡Mensaje enviado exitosamente!")
+        
+        st.markdown("---")
+        st.caption("👇 Copia el mensaje desde aquí:")
+        # Uso de st.code para dar funcionalidad nativa de "Copiar al portapapeles"
+        st.code(mensaje_txt, language='text')
+
+        # Lógica de Botón de Envío
+        st.markdown("### Acciones")
+        
+        if largo_mensaje > 1500:
+            st.warning(f"⚠️ **Mensaje demasiado largo ({largo_mensaje} caracteres)**")
+            st.info("ℹ️ El límite seguro de WhatsApp API es 1500 caracteres.\n\n"
+                    "Por favor, usa el botón de **copiar** (arriba a la derecha del bloque de texto) "
+                    "y pega la lista manualmente en WhatsApp web.")
+        else:
+            if st.button("🚀 Enviar a WhatsApp", type="primary", use_container_width=True):
+                if enviar_whatsapp(mensaje_txt, credentials):
+                    st.balloons()
+                    st.success("✅ ¡Mensaje enviado exitosamente!")
     else:
         st.error("❌ No se pudieron extraer datos del PDF. Verifica el formato del archivo.")
 else:
     st.info("👆 Sube un archivo PDF para comenzar")
 
 st.markdown("---")
-st.caption("Repositor Saphirus 21.0 | Actualización: Aparatos, Mini y Touch")
-
+st.caption("Repositor Saphirus 21.0 | v2.1")
