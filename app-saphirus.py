@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Repositor Saphirus", page_icon="✨", layout="centered")
-st.title("✨ Repositor Saphirus 25.0")
+st.title("✨ Repositor Saphirus 26.0")
 
 # --- ESTILOS CSS ---
 st.markdown("""
@@ -222,7 +222,6 @@ def actualizar_estado(item_id, nuevo_estado):
 
 def actualizar_categoria_completa(categoria, nuevo_estado):
     for item in st.session_state.audit_data:
-        # Solo actualizamos los que aún no tienen estado para no sobreescribir (opcional, pero más seguro)
         if item['categoria'] == categoria and item['status'] is None:
             item['status'] = nuevo_estado
 
@@ -352,10 +351,8 @@ with tab3:
         
         st.markdown("---")
         
-        # Obtener categorías
         all_cats = sorted(list(set([x['categoria'] for x in st.session_state.audit_data])))
         
-        # MOSTRAR SOLO CATEGORÍAS CON ÍTEMS PENDIENTES
         cats_pendientes = []
         for c in all_cats:
             if any(x['categoria'] == c and x['status'] is None for x in st.session_state.audit_data):
@@ -365,8 +362,8 @@ with tab3:
              st.success("🎉 ¡Auditoría Completada! Revisa los resultados abajo.")
 
         for cat in cats_pendientes:
-            with st.expander(f"📂 {cat}", expanded=True):
-                # --- BARRA DE ACCIÓN MASIVA ---
+            # === CAMBIO AQUI: expanded=False ===
+            with st.expander(f"📂 {cat}", expanded=False):
                 st.markdown(f"<div style='background-color:#f0f2f6; padding:5px; border-radius:5px; margin-bottom:10px;'>", unsafe_allow_html=True)
                 cb_info, cb1, cb2, cb3 = st.columns([4, 1, 1, 1])
                 with cb_info:
@@ -385,7 +382,6 @@ with tab3:
                         st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
                 
-                # --- LISTADO DE ÍTEMS (Solo pendientes) ---
                 items_visibles = [x for x in st.session_state.audit_data if x['categoria'] == cat and x['status'] is None]
                 
                 for item in items_visibles:
@@ -420,4 +416,4 @@ with tab3:
             st.code(formatear_lista_texto(lpen, "Pendientes"), language='text')
 
 st.markdown("---")
-st.caption("Repositor Saphirus 25.0")
+st.caption("Repositor Saphirus 26.0")
