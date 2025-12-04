@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Repositor Saphirus", page_icon="✨", layout="centered")
-st.title("✨ Repositor Saphirus 23.1")
+st.title("✨ Repositor Saphirus 24.0")
 
 # --- ESTILOS CSS PERSONALIZADOS ---
 st.markdown("""
@@ -23,6 +23,15 @@ st.markdown("""
     }
     div[data-testid="column"] {
         text-align: center;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .bulk-action-label {
+        font-weight: bold;
+        color: #555;
+        text-align: right;
+        margin-right: 10px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -46,7 +55,6 @@ def cargar_credenciales():
             }
             return credentials
         except Exception:
-            # Fallback inputs si no hay secrets
             return {
                 'SID': st.text_input("SID", type="password"),
                 'TOK': st.text_input("Token", type="password"),
@@ -155,12 +163,9 @@ def extraer_texto_pdf(archivo):
 
 def parsear_datos(texto):
     datos = []
-    # Intenta formato CSV primero
     matches = re.findall(r'"\s*(\d{8})\s*"\s*,\s*"\s*([-0-9,]+)\s+([^"]+)"', texto)
     if not matches:
-        # Intenta formato Libre
         matches = re.findall(r'(\d{8})\s+([-0-9]+,\d{2})\s+(.*?)(?=\s\d{1,3}(?:\.\d{3})*,\d{2})', texto)
-    
     for m in matches:
         datos.append({"ID": m[0], "Cantidad": m[1], "Producto": m[2].strip()})
     return datos
@@ -174,7 +179,6 @@ def limpiar_dataframe(df):
     return df.groupby(["Categoria", "Producto"], as_index=False)["Cantidad"].sum()
 
 def procesar_pdf(archivo):
-    """Función principal que orquesta la lectura del PDF"""
     try:
         texto = extraer_texto_pdf(archivo)
         if not texto: return None
@@ -191,11 +195,9 @@ def preparar_datos_auditoria(texto_lista):
     items = []
     categoria_actual = "General"
     lineas = texto_lista.split('\n')
-    
     for linea in lineas:
         linea = linea.strip()
         if not linea: continue
-        
         if linea.startswith("==") and linea.endswith("=="):
             categoria_actual = linea.replace("==", "").strip()
         elif " x " in linea:
@@ -204,7 +206,6 @@ def preparar_datos_auditoria(texto_lista):
                 cant_str = partes[0].strip()
                 prod = partes[1].strip()
                 cant = float(cant_str) if '.' in cant_str else int(cant_str)
-                
                 items.append({
                     "id": str(uuid.uuid4()),
                     "categoria": categoria_actual,
@@ -221,15 +222,19 @@ def actualizar_estado(item_id, nuevo_estado):
             item['status'] = nuevo_estado
             break
 
+def actualizar_categoria_completa(categoria, nuevo_estado):
+    """Marca todos los items de una categoría con el mismo estado"""
+    for item in st.session_state.audit_data:
+        if item['categoria'] == categoria:
+            item['status'] = nuevo_estado
+
 def generar_listas_finales(data):
     pedido_web = {} 
     reponido = {}
     pendiente = {}
-    
     for item in data:
         cat = item['categoria']
         linea = f"{item['cantidad']} x {item['producto']}"
-        
         if item['status'] == 'pedido':
             if cat not in pedido_web: pedido_web[cat] = []
             pedido_web[cat].append(linea)
@@ -239,7 +244,6 @@ def generar_listas_finales(data):
         elif item['status'] == 'pendiente':
             if cat not in pendiente: pendiente[cat] = []
             pendiente[cat].append(linea)
-            
     return pedido_web, reponido, pendiente
 
 def formatear_lista_texto(diccionario, titulo):
@@ -251,7 +255,6 @@ def formatear_lista_texto(diccionario, titulo):
             txt += f"{prod}\n"
     return txt
 
-# --- GENERACIÓN DE MENSAJE BÁSICO ---
 def generar_mensaje_df(df):
     txt = "📋 *LISTA DE REPOSICIÓN*\n"
     for c in sorted(df["Categoria"].unique()):
@@ -279,21 +282,15 @@ tab1, tab2, tab3 = st.tabs(["📄 Procesar PDF", "➕ Sumar Listas", "✅ Audito
 with tab1:
     archivo = st.file_uploader("Subir PDF", type="pdf")
     if archivo:
-        # AHORA SÍ: Llamada segura a la función reincorporada
         df_res = procesar_pdf(archivo)
-        
         if df_res is not None and not df_res.empty:
             msg = generar_mensaje_df(df_res)
             st.code(msg, language='text')
-            
-            if len(msg) > 1500:
-                st.warning("⚠️ Mensaje muy largo para WhatsApp directo.")
+            if len(msg) > 1500: st.warning("⚠️ Mensaje muy largo para WhatsApp directo.")
             else:
                 if st.button("Enviar PDF a WhatsApp"):
-                    if enviar_whatsapp(msg, credentials): 
-                        st.success("Enviado")
-        else:
-            st.error("No se pudieron extraer datos. Verifica el PDF.")
+                    if enviar_whatsapp(msg, credentials): st.success("Enviado")
+        else: st.error("No se pudieron extraer datos.")
 
 # TAB 2: SUMA
 with tab2:
@@ -301,9 +298,7 @@ with tab2:
     c1, c2 = st.columns(2)
     l1 = c1.text_area("Lista 1")
     l2 = c2.text_area("Lista 2")
-    
     if st.button("Unificar"):
-        # Importamos lógica de parseo simple aquí para no depender de bloques externos
         def parse_simple(txt):
             d = {}
             cat = "General"
@@ -319,18 +314,13 @@ with tab2:
                         d[cat][prod] = d[cat].get(prod, 0) + c
                     except: pass
             return d
-
         d1 = parse_simple(l1)
         d2 = parse_simple(l2)
-        
-        # Merge
         total = d1.copy()
         for c, prods in d2.items():
             if c not in total: total[c] = {}
             for p, qty in prods.items():
                 total[c][p] = total[c].get(p, 0) + qty
-        
-        # Print
         txt_fin = "📋 *LISTA SUMADA*\n"
         for c in sorted(total.keys()):
             txt_fin += f"\n== {c} ==\n"
@@ -338,7 +328,6 @@ with tab2:
                 q = total[c][p]
                 q_fmt = int(q) if q.is_integer() else q
                 txt_fin += f"{q_fmt} x {p}\n"
-        
         st.code(txt_fin, language='text')
 
 # TAB 3: AUDITORÍA
@@ -352,9 +341,7 @@ with tab3:
                 st.session_state.audit_data = preparar_datos_auditoria(input_audit)
                 st.session_state.audit_started = True
                 st.rerun()
-            else:
-                st.warning("Pega una lista primero")
-    
+            else: st.warning("Pega una lista primero")
     else:
         if st.button("🔄 Reiniciar Auditoría", type="secondary"):
             st.session_state.audit_started = False
@@ -363,45 +350,57 @@ with tab3:
             
         completed = len([x for x in st.session_state.audit_data if x['status']])
         total = len(st.session_state.audit_data)
-        if total > 0:
-            st.progress(completed / total)
-        
+        if total > 0: st.progress(completed / total)
         st.markdown("---")
         
-        # Agrupar por categoría
         cats = sorted(list(set([x['categoria'] for x in st.session_state.audit_data])))
         
         for cat in cats:
             with st.expander(f"📂 {cat}", expanded=True):
+                # --- NUEVO: BARRA DE ACCIÓN MASIVA POR CATEGORÍA ---
+                st.markdown(f"<div style='background-color:#f0f2f6; padding:5px; border-radius:5px; margin-bottom:10px;'>", unsafe_allow_html=True)
+                cb_info, cb1, cb2, cb3 = st.columns([4, 1, 1, 1])
+                with cb_info:
+                    st.markdown(f"**ACCIONES PARA TODOS LOS {cat}:**")
+                with cb1:
+                    if st.button("📦📉 Todos", key=f"all_ped_{cat}", help=f"Marcar todos los {cat} como Sin Stock"):
+                        actualizar_categoria_completa(cat, 'pedido')
+                        st.rerun()
+                with cb2:
+                    if st.button("✅ Todos", key=f"all_rep_{cat}", help=f"Marcar todos los {cat} como Repuestos"):
+                        actualizar_categoria_completa(cat, 'repuesto')
+                        st.rerun()
+                with cb3:
+                    if st.button("❌ Todos", key=f"all_pen_{cat}", help=f"Marcar todos los {cat} como No Necesarios"):
+                        actualizar_categoria_completa(cat, 'pendiente')
+                        st.rerun()
+                st.markdown("</div>", unsafe_allow_html=True)
+                # -----------------------------------------------------
+
                 items = [x for x in st.session_state.audit_data if x['categoria'] == cat]
                 for item in items:
-                    # Layout visual similar a la imagen solicitada
                     c1, c2, c3, c4 = st.columns([4, 1, 1, 1])
-                    
                     with c1:
                         st.markdown(f"**{item['cantidad']} x {item['producto']}**")
                         if item['status'] == 'pedido': st.caption("❌ Sin Stock (A Pedido)")
                         elif item['status'] == 'repuesto': st.caption("✅ Repuesto")
                         elif item['status'] == 'pendiente': st.caption("⚠️ No necesario / Pendiente")
-                    
-                    # Botones con iconos
                     with c2:
-                        if st.button("📦📉", key=f"p_{item['id']}", help="Sin Stock"):
+                        if st.button("📦📉", key=f"p_{item['id']}"):
                             actualizar_estado(item['id'], 'pedido')
                             st.rerun()
                     with c3:
-                        if st.button("✅", key=f"r_{item['id']}", help="Repuesto"):
+                        if st.button("✅", key=f"r_{item['id']}"):
                             actualizar_estado(item['id'], 'repuesto')
                             st.rerun()
                     with c4:
-                        if st.button("❌", key=f"n_{item['id']}", help="No necesario"):
+                        if st.button("❌", key=f"n_{item['id']}"):
                             actualizar_estado(item['id'], 'pendiente')
                             st.rerun()
                     st.divider()
 
         st.header("📊 Listas Finales")
         lp, lr, lpen = generar_listas_finales(st.session_state.audit_data)
-        
         c_res1, c_res2, c_res3 = st.columns(3)
         with c_res1: 
             st.subheader("📉 Pedido")
@@ -414,4 +413,4 @@ with tab3:
             st.code(formatear_lista_texto(lpen, "Pendientes"), language='text')
 
 st.markdown("---")
-st.caption("Repositor Saphirus 23.1")
+st.caption("Repositor Saphirus 24.0")
