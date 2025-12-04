@@ -12,9 +12,9 @@ logger = logging.getLogger(__name__)
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Repositor Saphirus", page_icon="✨", layout="centered")
-st.title("✨ Repositor Saphirus 24.0")
+st.title("✨ Repositor Saphirus 25.0")
 
-# --- ESTILOS CSS PERSONALIZADOS ---
+# --- ESTILOS CSS ---
 st.markdown("""
 <style>
     .stButton button {
@@ -27,16 +27,14 @@ st.markdown("""
         align-items: center;
         justify-content: center;
     }
-    .bulk-action-label {
-        font-weight: bold;
-        color: #555;
-        text-align: right;
-        margin-right: 10px;
+    /* Animación simple para elementos */
+    .element-container {
+        transition: all 0.3s ease;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# --- GESTIÓN DE ESTADO (SESSION STATE) ---
+# --- GESTIÓN DE ESTADO ---
 if 'audit_data' not in st.session_state:
     st.session_state.audit_data = [] 
 if 'audit_started' not in st.session_state:
@@ -223,9 +221,9 @@ def actualizar_estado(item_id, nuevo_estado):
             break
 
 def actualizar_categoria_completa(categoria, nuevo_estado):
-    """Marca todos los items de una categoría con el mismo estado"""
     for item in st.session_state.audit_data:
-        if item['categoria'] == categoria:
+        # Solo actualizamos los que aún no tienen estado para no sobreescribir (opcional, pero más seguro)
+        if item['categoria'] == categoria and item['status'] is None:
             item['status'] = nuevo_estado
 
 def generar_listas_finales(data):
@@ -348,43 +346,52 @@ with tab3:
             st.session_state.audit_data = []
             st.rerun()
             
-        completed = len([x for x in st.session_state.audit_data if x['status']])
-        total = len(st.session_state.audit_data)
-        if total > 0: st.progress(completed / total)
+        completed_count = len([x for x in st.session_state.audit_data if x['status']])
+        total_items = len(st.session_state.audit_data)
+        if total_items > 0: st.progress(completed_count / total_items)
+        
         st.markdown("---")
         
-        cats = sorted(list(set([x['categoria'] for x in st.session_state.audit_data])))
+        # Obtener categorías
+        all_cats = sorted(list(set([x['categoria'] for x in st.session_state.audit_data])))
         
-        for cat in cats:
+        # MOSTRAR SOLO CATEGORÍAS CON ÍTEMS PENDIENTES
+        cats_pendientes = []
+        for c in all_cats:
+            if any(x['categoria'] == c and x['status'] is None for x in st.session_state.audit_data):
+                cats_pendientes.append(c)
+
+        if not cats_pendientes and total_items > 0:
+             st.success("🎉 ¡Auditoría Completada! Revisa los resultados abajo.")
+
+        for cat in cats_pendientes:
             with st.expander(f"📂 {cat}", expanded=True):
-                # --- NUEVO: BARRA DE ACCIÓN MASIVA POR CATEGORÍA ---
+                # --- BARRA DE ACCIÓN MASIVA ---
                 st.markdown(f"<div style='background-color:#f0f2f6; padding:5px; border-radius:5px; margin-bottom:10px;'>", unsafe_allow_html=True)
                 cb_info, cb1, cb2, cb3 = st.columns([4, 1, 1, 1])
                 with cb_info:
                     st.markdown(f"**ACCIONES PARA TODOS LOS {cat}:**")
                 with cb1:
-                    if st.button("📦📉 Todos", key=f"all_ped_{cat}", help=f"Marcar todos los {cat} como Sin Stock"):
+                    if st.button("📦📉 Todos", key=f"all_ped_{cat}"):
                         actualizar_categoria_completa(cat, 'pedido')
                         st.rerun()
                 with cb2:
-                    if st.button("✅ Todos", key=f"all_rep_{cat}", help=f"Marcar todos los {cat} como Repuestos"):
+                    if st.button("✅ Todos", key=f"all_rep_{cat}"):
                         actualizar_categoria_completa(cat, 'repuesto')
                         st.rerun()
                 with cb3:
-                    if st.button("❌ Todos", key=f"all_pen_{cat}", help=f"Marcar todos los {cat} como No Necesarios"):
+                    if st.button("❌ Todos", key=f"all_pen_{cat}"):
                         actualizar_categoria_completa(cat, 'pendiente')
                         st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
-                # -----------------------------------------------------
-
-                items = [x for x in st.session_state.audit_data if x['categoria'] == cat]
-                for item in items:
+                
+                # --- LISTADO DE ÍTEMS (Solo pendientes) ---
+                items_visibles = [x for x in st.session_state.audit_data if x['categoria'] == cat and x['status'] is None]
+                
+                for item in items_visibles:
                     c1, c2, c3, c4 = st.columns([4, 1, 1, 1])
                     with c1:
                         st.markdown(f"**{item['cantidad']} x {item['producto']}**")
-                        if item['status'] == 'pedido': st.caption("❌ Sin Stock (A Pedido)")
-                        elif item['status'] == 'repuesto': st.caption("✅ Repuesto")
-                        elif item['status'] == 'pendiente': st.caption("⚠️ No necesario / Pendiente")
                     with c2:
                         if st.button("📦📉", key=f"p_{item['id']}"):
                             actualizar_estado(item['id'], 'pedido')
@@ -413,4 +420,4 @@ with tab3:
             st.code(formatear_lista_texto(lpen, "Pendientes"), language='text')
 
 st.markdown("---")
-st.caption("Repositor Saphirus 24.0")
+st.caption("Repositor Saphirus 25.0")
