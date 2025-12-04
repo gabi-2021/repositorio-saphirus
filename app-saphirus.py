@@ -381,4 +381,5 @@ else:
     st.info("👆 Sube un archivo PDF para comenzar")
 
 st.markdown("---")
-st.caption("Repositor Saphirus 20.1 | Actualización: Aparatos, Mini y Touch")
+st.caption("Repositor Saphirus 21.0 | Actualización: Aparatos, Mini y Touch")
+
