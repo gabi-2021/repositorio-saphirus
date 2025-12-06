@@ -15,7 +15,7 @@ st.set_page_config(page_title="Repositor Saphirus", page_icon="✨", layout="cen
 st.title("✨ Repositor Saphirus 27.0")
 
 # --- ESTILOS CSS OPTIMIZADOS PARA MÓVIL ---
-st.markdown("""
+st.markdown(
 <style>
     /* --- Estilos Generales de Botones --- */
     .stButton button {
@@ -78,7 +78,7 @@ st.markdown("""
         margin: 0.5em 0 !important;
     }
 </style>
-""", unsafe_allow_html=True)
+, unsafe_allow_html=True)
 
 # --- GESTIÓN DE ESTADO ---
 if 'audit_data' not in st.session_state:
@@ -466,3 +466,4 @@ with tab3:
 
 st.markdown("---")
 st.caption("Repositor Saphirus 27.0")
+
