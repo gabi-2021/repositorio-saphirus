@@ -445,7 +445,7 @@ with tab3:
                 with cb_info:
                     st.markdown(f"<small style='color:#666; padding-left: 4px; line-height: 55px;'><b>{cat}</b></small>", unsafe_allow_html=True)
                 with cb1:
-                    if st.button("📦📉", key=f"all_ped_{cat}", help="Marcar TODOS como Sin Stock"):
+                    if st.button("📦", key=f"all_ped_{cat}", help="Marcar TODOS como Sin Stock"):
                         actualizar_categoria_completa(cat, 'pedido')
                         st.rerun()
                 with cb2:
@@ -492,3 +492,4 @@ with tab3:
 
 st.markdown("---")
 st.caption("Repositor Saphirus 33.0")
+
