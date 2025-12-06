@@ -12,65 +12,61 @@ logger = logging.getLogger(__name__)
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Repositor Saphirus", page_icon="✨", layout="centered")
-st.title("✨ Repositor Saphirus 28.0")
+st.title("✨ Repositor Saphirus 29.0")
 
-# --- ESTILOS CSS AGRESIVOS PARA MÓVIL ---
+# --- ESTILOS CSS "NUCLEAR" PARA MÓVIL ---
 st.markdown("""
 <style>
-    /* 1. Botones compactos y centrados */
+    /* 1. Resetear estilos de botones */
     .stButton button {
         width: 100% !important;
-        min-width: 0px !important;
+        min-width: unset !important;
         padding: 0px !important;
         margin: 0px !important;
-        height: 35px !important; /* Altura fija */
+        height: 38px !important;
+        font-size: 16px !important;
         line-height: 1 !important;
-        font-size: 18px !important;
-        border-radius: 4px;
-        border: 1px solid #ddd;
+        border: 1px solid #ccc;
     }
 
-    /* 2. Ajuste del contenedor de filas (Horizontal Block) */
-    div[data-testid="stHorizontalBlock"] {
-        align-items: center;
-        flex-wrap: nowrap !important; /* IMPORTANTE: No permitir que bajen */
-        gap: 2px !important; /* Reducir el espacio entre columnas al mínimo */
-    }
-
-    /* 3. Ajuste de Columnas Individuales */
-    div[data-testid="column"] {
-        padding: 0px !important;
-        min-width: 0px !important; /* Permitir que se encojan */
-        flex: 1 1 auto; /* Flexibilidad base */
-    }
-
-    /* --- REGLAS ESPECÍFICAS PARA MÓVIL --- */
+    /* 2. REGLA MAESTRA PARA CELULARES */
     @media (max-width: 640px) {
-        /* Reducir gap aún más */
-        div[data-testid="stHorizontalBlock"] {
-            gap: 1px !important;
-        }
-
-        /* Columna de TEXTO (la primera): Ocupa el espacio sobrante */
-        div[data-testid="column"]:first-child {
-            flex: 10 1 auto !important; /* Crece más que las otras */
-            padding-right: 5px !important;
-            overflow: hidden;
-        }
-
-        /* Columnas de BOTONES (las siguientes): Ancho fijo pequeño */
-        div[data-testid="column"]:not(:first-child) {
-            flex: 0 0 35px !important; /* Ancho fijo de 35px aprox */
-            max-width: 35px !important;
-        }
         
-        /* Ajustar tamaño de fuente del texto */
-        div[data-testid="column"] p {
+        /* Convertir el bloque horizontal en una Grid exacta */
+        div[data-testid="stHorizontalBlock"] {
+            display: grid !important;
+            /* Columna 1: 1 fracción (todo el espacio disponible)
+               Columna 2, 3, 4: 38px fijos cada una
+            */
+            grid-template-columns: 1fr 38px 38px 38px !important;
+            gap: 4px !important;
+            align-items: center !important;
+            width: 100% !important;
+        }
+
+        /* Anular anchos de Streamlit */
+        div[data-testid="column"] {
+            width: auto !important;
+            min-width: 0px !important;
+            flex: unset !important;
+            padding: 0 !important;
+        }
+
+        /* Estilo del texto del producto */
+        div[data-testid="column"]:first-child p {
             font-size: 13px !important;
+            line-height: 1.2 !important;
             margin: 0 !important;
-            white-space: nowrap; /* Evitar saltos de línea si se prefiere */
+            /* Truncar texto si es muy largo para salvar los botones */
+            white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            padding-right: 5px;
+        }
+        
+        /* Ocultar elementos vacíos que Streamlit a veces agrega */
+        div[data-testid="column"]:empty {
+            display: none !important;
         }
     }
 </style>
@@ -405,12 +401,16 @@ with tab3:
 
         for cat in cats_pendientes:
             with st.expander(f"📂 {cat}", expanded=False):
-                # --- BARRA DE ACCIÓN MASIVA (Responsive) ---
+                # --- BARRA DE ACCIÓN MASIVA (Grid) ---
                 st.markdown(f"<div style='background-color:#f9f9f9; padding: 5px 0; border-radius:5px; margin-bottom:5px;'>", unsafe_allow_html=True)
-                # OJO: Aquí usamos la misma lógica de columnas que abajo
-                cb_info, cb1, cb2, cb3 = st.columns([10, 2, 2, 2])
+                
+                # Usamos los mismos ratios que la grilla CSS para mantener alineación
+                # Texto grande + 3 botones pequeños
+                cb_info, cb1, cb2, cb3 = st.columns([1, 1, 1, 1]) 
+                # Nota: En Streamlit puro estos ratios no importan mucho porque el CSS lo sobreescribe
+                
                 with cb_info:
-                    st.markdown(f"<small style='color:#666;'><b>{cat}</b> (Todos)</small>", unsafe_allow_html=True)
+                    st.markdown(f"<small style='color:#666;'><b>{cat}</b></small>", unsafe_allow_html=True)
                 with cb1:
                     if st.button("📦📉", key=f"all_ped_{cat}", help="Todos Sin Stock"):
                         actualizar_categoria_completa(cat, 'pedido')
@@ -428,9 +428,8 @@ with tab3:
                 items_visibles = [x for x in st.session_state.audit_data if x['categoria'] == cat and x['status'] is None]
                 
                 for item in items_visibles:
-                    # PROPORCIÓN AJUSTADA: Mucho espacio al texto, poco y fijo a los botones
-                    # [10, 2, 2, 2] asegura que el texto se "coma" el espacio y los botones queden chicos
-                    c1, c2, c3, c4 = st.columns([10, 2, 2, 2])
+                    # Ratios simbólicos, el CSS hace el trabajo real
+                    c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
                     with c1:
                         # Texto del producto
                         st.markdown(f"<span style='font-weight:500;'>{item['cantidad']} x {item['producto']}</span>", unsafe_allow_html=True)
@@ -462,4 +461,4 @@ with tab3:
             st.code(formatear_lista_texto(lpen, "Pendientes"), language='text')
 
 st.markdown("---")
-st.caption("Repositor Saphirus 28.0")
+st.caption("Repositor Saphirus 29.0")
