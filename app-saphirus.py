@@ -12,24 +12,24 @@ logger = logging.getLogger(__name__)
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Repositor Saphirus", page_icon="✨", layout="centered")
-st.title("✨ Repositor Saphirus 31.0")
+st.title("✨ Repositor Saphirus 33.0")
 
-# --- ESTILOS CSS "ULTRA COMPACTOS" ---
+# --- ESTILOS CSS (Altura aumentada a 55px) ---
 st.markdown("""
 <style>
-    /* 1. Reducir padding general de la app */
+    /* 1. Reducir padding general */
     .block-container {
         padding-top: 1rem !important;
-        padding-bottom: 2rem !important;
+        padding-bottom: 3rem !important;
     }
 
-    /* 2. Compactar el contenido dentro de los Expanders */
+    /* 2. Compactar contenido de Expanders */
     div[data-testid="stExpander"] div[data-testid="stVerticalBlock"] {
-        gap: 0rem !important; /* CERO espacio entre filas */
+        gap: 0rem !important;
         padding: 0rem !important;
     }
     
-    /* 3. Estilo de Botones (Más pequeños) */
+    /* 3. Estilo de Botones (Más altos y grandes) */
     .stButton button {
         background-color: transparent !important;
         border: none !important;
@@ -37,57 +37,65 @@ st.markdown("""
         color: inherit !important;
         padding: 0px !important;
         margin: 0px !important;
-        height: 30px !important; /* Altura mínima */
-        min-height: 30px !important;
-        font-size: 18px !important;
+        height: 55px !important; /* AUMENTADO A 55px */
+        min-height: 55px !important;
+        font-size: 24px !important; /* Icono más grande */
         line-height: 1 !important;
+        transition: background-color 0.2s;
     }
     .stButton button:hover {
         background-color: rgba(0,0,0,0.05) !important;
-        border-radius: 4px;
+        border-radius: 8px;
     }
 
-    /* 4. GRID layout para móviles (Ultra Compacto) */
+    /* 4. GRID layout para móviles (Altura 55px) */
     @media (max-width: 640px) {
         div[data-testid="stHorizontalBlock"] {
             display: grid !important;
-            /* Texto | Btn | Btn | Btn -> 30px cada botón */
-            grid-template-columns: 1fr 30px 30px 30px !important;
+            /* Texto | Btn(50) | Btn(50) | Btn(50) */
+            grid-template-columns: 1fr 50px 50px 50px !important; 
             gap: 2px !important;
             align-items: center !important;
             
-            /* BORDE INFERIOR para reemplazar al st.divider() y ahorrar espacio */
-            border-bottom: 1px solid #f0f0f0;
+            border-bottom: 1px solid #e0e0e0;
             margin-bottom: 0px !important;
-            padding-bottom: 2px !important;
-            padding-top: 2px !important;
+            padding-bottom: 0px !important;
+            padding-top: 0px !important;
+            min-height: 55px !important;
         }
 
-        /* Quitar márgenes extra de las columnas */
         div[data-testid="column"] {
             width: auto !important;
             min-width: 0px !important;
             flex: unset !important;
             padding: 0 !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 55px !important; /* Forzar altura de columna */
         }
 
-        /* Texto del producto más compacto */
+        /* Texto del producto a la izquierda */
+        div[data-testid="column"]:first-child {
+            justify-content: flex-start;
+        }
+
         div[data-testid="column"]:first-child p {
-            font-size: 13px !important;
+            font-size: 15px !important; 
             margin: 0 !important;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            line-height: 30px !important; /* Centrado vertical con el botón */
+            line-height: 55px !important; 
+            padding-left: 5px;
         }
         
-        /* Ocultar columnas vacías */
         div[data-testid="column"]:empty {
             display: none !important;
         }
     }
     
-    /* Ajuste para escritorio también */
+    /* Escritorio */
     @media (min-width: 641px) {
         div[data-testid="stHorizontalBlock"] {
              border-bottom: 1px solid #f0f0f0;
@@ -126,7 +134,7 @@ def cargar_credenciales():
 
 credentials = cargar_credenciales()
 
-# --- PATRONES DE CATEGORIZACIÓN (Igual que v30) ---
+# --- PATRONES DE CATEGORIZACIÓN ---
 CATEGORIAS = {
     'touch_dispositivo': {'pattern': lambda p: "DISPOSITIVO" in p and "TOUCH" in p, 'emoji': "🖱️", 'nombre': "Dispositivos Touch"},
     'touch_repuesto': {'pattern': lambda p: ("REPUESTO" in p and "TOUCH" in p) or "GR/13" in p, 'emoji': "🔄", 'nombre': "Repuestos de Touch"},
@@ -427,23 +435,25 @@ with tab3:
 
         for cat in cats_pendientes:
             with st.expander(f"📂 {cat}", expanded=False):
-                # --- BARRA DE ACCIÓN MASIVA (Grid) ---
+                # --- BARRA DE ACCIÓN MASIVA COMPLETA ---
                 st.markdown(f"<div style='background-color:#f9f9f9; padding: 5px 0; border-radius:5px; margin-bottom:5px; border-bottom: 1px solid #ddd;'>", unsafe_allow_html=True)
                 
+                # Restauramos las 4 columnas para que queden alineadas con los productos
+                # Texto (grande) + Btn 1 + Btn 2 + Btn 3
                 cb_info, cb1, cb2, cb3 = st.columns([1, 1, 1, 1]) 
                 
                 with cb_info:
-                    st.markdown(f"<small style='color:#666; padding-left: 4px;'><b>{cat}</b></small>", unsafe_allow_html=True)
+                    st.markdown(f"<small style='color:#666; padding-left: 4px; line-height: 55px;'><b>{cat}</b></small>", unsafe_allow_html=True)
                 with cb1:
-                    if st.button("📦📉", key=f"all_ped_{cat}", help="Todos Sin Stock"):
+                    if st.button("📦📉", key=f"all_ped_{cat}", help="Marcar TODOS como Sin Stock"):
                         actualizar_categoria_completa(cat, 'pedido')
                         st.rerun()
                 with cb2:
-                    if st.button("✅", key=f"all_rep_{cat}", help="Todos Repuestos"):
+                    if st.button("✅", key=f"all_rep_{cat}", help="Marcar TODOS como Repuestos"):
                         actualizar_categoria_completa(cat, 'repuesto')
                         st.rerun()
                 with cb3:
-                    if st.button("❌", key=f"all_pen_{cat}", help="Todos Pendientes"):
+                    if st.button("❌", key=f"all_pen_{cat}", help="Marcar TODOS como Pendientes"):
                         actualizar_categoria_completa(cat, 'pendiente')
                         st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
@@ -451,7 +461,7 @@ with tab3:
                 items_visibles = [x for x in st.session_state.audit_data if x['categoria'] == cat and x['status'] is None]
                 
                 for item in items_visibles:
-                    # CSS Grid hace el trabajo real. No usamos st.divider().
+                    # CSS Grid y altura 55px
                     c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
                     with c1:
                         st.markdown(f"<span style='font-weight:500;'>{item['cantidad']} x {item['producto']}</span>", unsafe_allow_html=True)
@@ -467,7 +477,6 @@ with tab3:
                         if st.button("❌", key=f"n_{item['id']}"):
                             actualizar_estado(item['id'], 'pendiente')
                             st.rerun()
-                    # Fin de la fila, el borde CSS se encarga de la separación
 
         st.header("📊 Listas Finales")
         lp, lr, lpen = generar_listas_finales(st.session_state.audit_data)
@@ -482,4 +491,4 @@ with tab3:
             st.code(formatear_lista_texto(lpen, "Pendientes"), language='text')
 
 st.markdown("---")
-st.caption("Repositor Saphirus 31.0")
+st.caption("Repositor Saphirus 33.0")
