@@ -12,12 +12,24 @@ logger = logging.getLogger(__name__)
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Repositor Saphirus", page_icon="✨", layout="centered")
-st.title("✨ Repositor Saphirus 30.0")
+st.title("✨ Repositor Saphirus 31.0")
 
-# --- ESTILOS CSS REFINADOS ---
+# --- ESTILOS CSS "ULTRA COMPACTOS" ---
 st.markdown("""
 <style>
-    /* 1. BOTONES INVISIBLES (Estilo Icono) */
+    /* 1. Reducir padding general de la app */
+    .block-container {
+        padding-top: 1rem !important;
+        padding-bottom: 2rem !important;
+    }
+
+    /* 2. Compactar el contenido dentro de los Expanders */
+    div[data-testid="stExpander"] div[data-testid="stVerticalBlock"] {
+        gap: 0rem !important; /* CERO espacio entre filas */
+        padding: 0rem !important;
+    }
+    
+    /* 3. Estilo de Botones (Más pequeños) */
     .stButton button {
         background-color: transparent !important;
         border: none !important;
@@ -25,32 +37,33 @@ st.markdown("""
         color: inherit !important;
         padding: 0px !important;
         margin: 0px !important;
-        height: 38px !important;
-        font-size: 20px !important; /* Icono un poco más grande */
+        height: 30px !important; /* Altura mínima */
+        min-height: 30px !important;
+        font-size: 18px !important;
         line-height: 1 !important;
-        transition: transform 0.1s;
     }
-    
-    /* Efecto suave al tocar/pasar mouse */
     .stButton button:hover {
-        transform: scale(1.2);
         background-color: rgba(0,0,0,0.05) !important;
-        border-radius: 50%;
-    }
-    
-    .stButton button:active {
-        transform: scale(0.9);
+        border-radius: 4px;
     }
 
-    /* 2. GRID layout para móviles (Mantenemos la lógica v29) */
+    /* 4. GRID layout para móviles (Ultra Compacto) */
     @media (max-width: 640px) {
         div[data-testid="stHorizontalBlock"] {
             display: grid !important;
-            grid-template-columns: 1fr 40px 40px 40px !important; /* Un poco más de espacio para el dedo */
+            /* Texto | Btn | Btn | Btn -> 30px cada botón */
+            grid-template-columns: 1fr 30px 30px 30px !important;
             gap: 2px !important;
             align-items: center !important;
+            
+            /* BORDE INFERIOR para reemplazar al st.divider() y ahorrar espacio */
+            border-bottom: 1px solid #f0f0f0;
+            margin-bottom: 0px !important;
+            padding-bottom: 2px !important;
+            padding-top: 2px !important;
         }
 
+        /* Quitar márgenes extra de las columnas */
         div[data-testid="column"] {
             width: auto !important;
             min-width: 0px !important;
@@ -58,18 +71,28 @@ st.markdown("""
             padding: 0 !important;
         }
 
-        /* Texto del producto */
+        /* Texto del producto más compacto */
         div[data-testid="column"]:first-child p {
-            font-size: 14px !important;
+            font-size: 13px !important;
             margin: 0 !important;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            padding-right: 8px;
+            line-height: 30px !important; /* Centrado vertical con el botón */
         }
         
+        /* Ocultar columnas vacías */
         div[data-testid="column"]:empty {
             display: none !important;
+        }
+    }
+    
+    /* Ajuste para escritorio también */
+    @media (min-width: 641px) {
+        div[data-testid="stHorizontalBlock"] {
+             border-bottom: 1px solid #f0f0f0;
+             padding-bottom: 5px;
+             margin-bottom: 5px;
         }
     }
 </style>
@@ -103,7 +126,7 @@ def cargar_credenciales():
 
 credentials = cargar_credenciales()
 
-# --- PATRONES DE CATEGORIZACIÓN ---
+# --- PATRONES DE CATEGORIZACIÓN (Igual que v30) ---
 CATEGORIAS = {
     'touch_dispositivo': {'pattern': lambda p: "DISPOSITIVO" in p and "TOUCH" in p, 'emoji': "🖱️", 'nombre': "Dispositivos Touch"},
     'touch_repuesto': {'pattern': lambda p: ("REPUESTO" in p and "TOUCH" in p) or "GR/13" in p, 'emoji': "🔄", 'nombre': "Repuestos de Touch"},
@@ -405,12 +428,12 @@ with tab3:
         for cat in cats_pendientes:
             with st.expander(f"📂 {cat}", expanded=False):
                 # --- BARRA DE ACCIÓN MASIVA (Grid) ---
-                st.markdown(f"<div style='background-color:#f9f9f9; padding: 5px 0; border-radius:5px; margin-bottom:5px;'>", unsafe_allow_html=True)
+                st.markdown(f"<div style='background-color:#f9f9f9; padding: 5px 0; border-radius:5px; margin-bottom:5px; border-bottom: 1px solid #ddd;'>", unsafe_allow_html=True)
                 
                 cb_info, cb1, cb2, cb3 = st.columns([1, 1, 1, 1]) 
                 
                 with cb_info:
-                    st.markdown(f"<small style='color:#666;'><b>{cat}</b></small>", unsafe_allow_html=True)
+                    st.markdown(f"<small style='color:#666; padding-left: 4px;'><b>{cat}</b></small>", unsafe_allow_html=True)
                 with cb1:
                     if st.button("📦📉", key=f"all_ped_{cat}", help="Todos Sin Stock"):
                         actualizar_categoria_completa(cat, 'pedido')
@@ -428,7 +451,7 @@ with tab3:
                 items_visibles = [x for x in st.session_state.audit_data if x['categoria'] == cat and x['status'] is None]
                 
                 for item in items_visibles:
-                    # CSS Grid hace el trabajo real
+                    # CSS Grid hace el trabajo real. No usamos st.divider().
                     c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
                     with c1:
                         st.markdown(f"<span style='font-weight:500;'>{item['cantidad']} x {item['producto']}</span>", unsafe_allow_html=True)
@@ -444,12 +467,11 @@ with tab3:
                         if st.button("❌", key=f"n_{item['id']}"):
                             actualizar_estado(item['id'], 'pendiente')
                             st.rerun()
-                    st.divider()
+                    # Fin de la fila, el borde CSS se encarga de la separación
 
         st.header("📊 Listas Finales")
         lp, lr, lpen = generar_listas_finales(st.session_state.audit_data)
         
-        # SOLUCIÓN: Usar Pestañas en lugar de Columnas para evitar texto vertical
         ft1, ft2, ft3 = st.tabs(["📉 Pedido", "✅ Repuesto", "❌ Pendiente"])
         
         with ft1:
@@ -460,4 +482,4 @@ with tab3:
             st.code(formatear_lista_texto(lpen, "Pendientes"), language='text')
 
 st.markdown("---")
-st.caption("Repositor Saphirus 30.0")
+st.caption("Repositor Saphirus 31.0")
