@@ -12,24 +12,70 @@ logger = logging.getLogger(__name__)
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Repositor Saphirus", page_icon="✨", layout="centered")
-st.title("✨ Repositor Saphirus 26.0")
+st.title("✨ Repositor Saphirus 27.0")
 
-# --- ESTILOS CSS ---
+# --- ESTILOS CSS OPTIMIZADOS PARA MÓVIL ---
 st.markdown("""
 <style>
+    /* --- Estilos Generales de Botones --- */
     .stButton button {
         width: 100%;
         border-radius: 5px;
+        border: 1px solid #e0e0e0; /* Borde sutil */
+        padding: 4px 0px !important; /* Botones más delgados */
+        font-size: 16px !important; /* Emoji legible pero no gigante */
+        line-height: 1 !important;
+        height: auto !important;
+        min-height: unset !important;
+        margin-top: 0px !important; /* Eliminar márgenes extra */
     }
+
+    /* --- Alineación de Columnas --- */
+    /* Centrar verticalmente el contenido de todas las columnas */
     div[data-testid="column"] {
-        text-align: center;
         display: flex;
         align-items: center;
+        padding: 0 2px !important; /* Reducir espacio entre columnas */
+    }
+
+    /* La primera columna (texto del producto) alineada a la izquierda */
+    div[data-testid="column"]:first-child {
+        justify-content: flex-start;
+    }
+    
+    /* Las columnas de botones centradas horizontalmente */
+    div[data-testid="column"]:not(:first-child) {
         justify-content: center;
     }
-    /* Animación simple para elementos */
+
+    /* --- OPTIMIZACIÓN PARA MÓVILES (CRÍTICO) --- */
+    @media (max-width: 640px) {
+        /* Fuerza a las columnas a mantenerse en una sola fila */
+        div[data-testid="stHorizontalBlock"] {
+            flex-wrap: nowrap !important;
+        }
+        
+        /* Ajustar el texto del producto para que ocupe menos espacio vertical */
+        div[data-testid="column"]:first-child p {
+            margin: 0 !important;
+            font-size: 14px !important;
+            line-height: 1.2 !important;
+        }
+        
+        /* Reducir aún más el padding de los botones en móvil */
+        .stButton button {
+            padding: 2px 0px !important;
+            font-size: 14px !important;
+        }
+    }
+
+    /* --- Otros Estilos --- */
     .element-container {
         transition: all 0.3s ease;
+    }
+    /* Reducir el espacio del divisor */
+    hr {
+        margin: 0.5em 0 !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -362,22 +408,23 @@ with tab3:
              st.success("🎉 ¡Auditoría Completada! Revisa los resultados abajo.")
 
         for cat in cats_pendientes:
-            # === CAMBIO AQUI: expanded=False ===
+            # Desplegables cerrados por defecto
             with st.expander(f"📂 {cat}", expanded=False):
-                st.markdown(f"<div style='background-color:#f0f2f6; padding:5px; border-radius:5px; margin-bottom:10px;'>", unsafe_allow_html=True)
-                cb_info, cb1, cb2, cb3 = st.columns([4, 1, 1, 1])
+                # Barra de acciones masivas con estilo más compacto
+                st.markdown(f"<div style='background-color:#f9f9f9; padding: 5px 0; border-radius:5px; margin-bottom:5px;'>", unsafe_allow_html=True)
+                cb_info, cb1, cb2, cb3 = st.columns([3, 1, 1, 1])
                 with cb_info:
-                    st.markdown(f"**ACCIONES PARA TODOS LOS {cat}:**")
+                    st.markdown(f"<small style='color:#666;'>Acciones masivas para <b>{cat}</b>:</small>", unsafe_allow_html=True)
                 with cb1:
-                    if st.button("📦📉 Todos", key=f"all_ped_{cat}"):
+                    if st.button("📦📉", key=f"all_ped_{cat}", help="Marcar TODOS como Sin Stock"):
                         actualizar_categoria_completa(cat, 'pedido')
                         st.rerun()
                 with cb2:
-                    if st.button("✅ Todos", key=f"all_rep_{cat}"):
+                    if st.button("✅", key=f"all_rep_{cat}", help="Marcar TODOS como Repuestos"):
                         actualizar_categoria_completa(cat, 'repuesto')
                         st.rerun()
                 with cb3:
-                    if st.button("❌ Todos", key=f"all_pen_{cat}"):
+                    if st.button("❌", key=f"all_pen_{cat}", help="Marcar TODOS como Pendientes"):
                         actualizar_categoria_completa(cat, 'pendiente')
                         st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
@@ -385,19 +432,21 @@ with tab3:
                 items_visibles = [x for x in st.session_state.audit_data if x['categoria'] == cat and x['status'] is None]
                 
                 for item in items_visibles:
-                    c1, c2, c3, c4 = st.columns([4, 1, 1, 1])
+                    # Proporción de columnas ajustada para dar más espacio al texto
+                    c1, c2, c3, c4 = st.columns([5, 1, 1, 1])
                     with c1:
-                        st.markdown(f"**{item['cantidad']} x {item['producto']}**")
+                        # Usamos markdown para un control más preciso del estilo del texto
+                        st.markdown(f"<span style='font-weight:500; font-size:15px;'>{item['cantidad']} x {item['producto']}</span>", unsafe_allow_html=True)
                     with c2:
-                        if st.button("📦📉", key=f"p_{item['id']}"):
+                        if st.button("📦", key=f"p_{item['id']}", help="Sin Stock"):
                             actualizar_estado(item['id'], 'pedido')
                             st.rerun()
                     with c3:
-                        if st.button("✅", key=f"r_{item['id']}"):
+                        if st.button("✅", key=f"r_{item['id']}", help="Repuesto"):
                             actualizar_estado(item['id'], 'repuesto')
                             st.rerun()
                     with c4:
-                        if st.button("❌", key=f"n_{item['id']}"):
+                        if st.button("❌", key=f"n_{item['id']}", help="No necesario"):
                             actualizar_estado(item['id'], 'pendiente')
                             st.rerun()
                     st.divider()
@@ -416,4 +465,4 @@ with tab3:
             st.code(formatear_lista_texto(lpen, "Pendientes"), language='text')
 
 st.markdown("---")
-st.caption("Repositor Saphirus 26.0")
+st.caption("Repositor Saphirus 27.0")
