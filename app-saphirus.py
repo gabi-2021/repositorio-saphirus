@@ -12,39 +12,45 @@ logger = logging.getLogger(__name__)
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Repositor Saphirus", page_icon="✨", layout="centered")
-st.title("✨ Repositor Saphirus 29.0")
+st.title("✨ Repositor Saphirus 30.0")
 
-# --- ESTILOS CSS "NUCLEAR" PARA MÓVIL ---
+# --- ESTILOS CSS REFINADOS ---
 st.markdown("""
 <style>
-    /* 1. Resetear estilos de botones */
+    /* 1. BOTONES INVISIBLES (Estilo Icono) */
     .stButton button {
-        width: 100% !important;
-        min-width: unset !important;
+        background-color: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        color: inherit !important;
         padding: 0px !important;
         margin: 0px !important;
         height: 38px !important;
-        font-size: 16px !important;
+        font-size: 20px !important; /* Icono un poco más grande */
         line-height: 1 !important;
-        border: 1px solid #ccc;
+        transition: transform 0.1s;
+    }
+    
+    /* Efecto suave al tocar/pasar mouse */
+    .stButton button:hover {
+        transform: scale(1.2);
+        background-color: rgba(0,0,0,0.05) !important;
+        border-radius: 50%;
+    }
+    
+    .stButton button:active {
+        transform: scale(0.9);
     }
 
-    /* 2. REGLA MAESTRA PARA CELULARES */
+    /* 2. GRID layout para móviles (Mantenemos la lógica v29) */
     @media (max-width: 640px) {
-        
-        /* Convertir el bloque horizontal en una Grid exacta */
         div[data-testid="stHorizontalBlock"] {
             display: grid !important;
-            /* Columna 1: 1 fracción (todo el espacio disponible)
-               Columna 2, 3, 4: 38px fijos cada una
-            */
-            grid-template-columns: 1fr 38px 38px 38px !important;
-            gap: 4px !important;
+            grid-template-columns: 1fr 40px 40px 40px !important; /* Un poco más de espacio para el dedo */
+            gap: 2px !important;
             align-items: center !important;
-            width: 100% !important;
         }
 
-        /* Anular anchos de Streamlit */
         div[data-testid="column"] {
             width: auto !important;
             min-width: 0px !important;
@@ -52,19 +58,16 @@ st.markdown("""
             padding: 0 !important;
         }
 
-        /* Estilo del texto del producto */
+        /* Texto del producto */
         div[data-testid="column"]:first-child p {
-            font-size: 13px !important;
-            line-height: 1.2 !important;
+            font-size: 14px !important;
             margin: 0 !important;
-            /* Truncar texto si es muy largo para salvar los botones */
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            padding-right: 5px;
+            padding-right: 8px;
         }
         
-        /* Ocultar elementos vacíos que Streamlit a veces agrega */
         div[data-testid="column"]:empty {
             display: none !important;
         }
@@ -404,10 +407,7 @@ with tab3:
                 # --- BARRA DE ACCIÓN MASIVA (Grid) ---
                 st.markdown(f"<div style='background-color:#f9f9f9; padding: 5px 0; border-radius:5px; margin-bottom:5px;'>", unsafe_allow_html=True)
                 
-                # Usamos los mismos ratios que la grilla CSS para mantener alineación
-                # Texto grande + 3 botones pequeños
                 cb_info, cb1, cb2, cb3 = st.columns([1, 1, 1, 1]) 
-                # Nota: En Streamlit puro estos ratios no importan mucho porque el CSS lo sobreescribe
                 
                 with cb_info:
                     st.markdown(f"<small style='color:#666;'><b>{cat}</b></small>", unsafe_allow_html=True)
@@ -428,10 +428,9 @@ with tab3:
                 items_visibles = [x for x in st.session_state.audit_data if x['categoria'] == cat and x['status'] is None]
                 
                 for item in items_visibles:
-                    # Ratios simbólicos, el CSS hace el trabajo real
+                    # CSS Grid hace el trabajo real
                     c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
                     with c1:
-                        # Texto del producto
                         st.markdown(f"<span style='font-weight:500;'>{item['cantidad']} x {item['producto']}</span>", unsafe_allow_html=True)
                     with c2:
                         if st.button("📦", key=f"p_{item['id']}"):
@@ -449,16 +448,16 @@ with tab3:
 
         st.header("📊 Listas Finales")
         lp, lr, lpen = generar_listas_finales(st.session_state.audit_data)
-        c_res1, c_res2, c_res3 = st.columns(3)
-        with c_res1: 
-            st.subheader("📉 Pedido")
+        
+        # SOLUCIÓN: Usar Pestañas en lugar de Columnas para evitar texto vertical
+        ft1, ft2, ft3 = st.tabs(["📉 Pedido", "✅ Repuesto", "❌ Pendiente"])
+        
+        with ft1:
             st.code(formatear_lista_texto(lp, "Pedido Web"), language='text')
-        with c_res2: 
-            st.subheader("✅ Repuesto")
+        with ft2:
             st.code(formatear_lista_texto(lr, "Repuesto Hoy"), language='text')
-        with c_res3: 
-            st.subheader("❌ Pendiente")
+        with ft3:
             st.code(formatear_lista_texto(lpen, "Pendientes"), language='text')
 
 st.markdown("---")
-st.caption("Repositor Saphirus 29.0")
+st.caption("Repositor Saphirus 30.0")
