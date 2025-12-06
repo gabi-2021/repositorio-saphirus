@@ -12,70 +12,66 @@ logger = logging.getLogger(__name__)
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Repositor Saphirus", page_icon="✨", layout="centered")
-st.title("✨ Repositor Saphirus 27.0")
+st.title("✨ Repositor Saphirus 28.0")
 
-# --- ESTILOS CSS OPTIMIZADOS PARA MÓVIL ---
+# --- ESTILOS CSS AGRESIVOS PARA MÓVIL ---
 st.markdown("""
 <style>
-    /* --- Estilos Generales de Botones --- */
+    /* 1. Botones compactos y centrados */
     .stButton button {
-        width: 100%;
-        border-radius: 5px;
-        border: 1px solid #e0e0e0; /* Borde sutil */
-        padding: 4px 0px !important; /* Botones más delgados */
-        font-size: 16px !important; /* Emoji legible pero no gigante */
+        width: 100% !important;
+        min-width: 0px !important;
+        padding: 0px !important;
+        margin: 0px !important;
+        height: 35px !important; /* Altura fija */
         line-height: 1 !important;
-        height: auto !important;
-        min-height: unset !important;
-        margin-top: 0px !important; /* Eliminar márgenes extra */
+        font-size: 18px !important;
+        border-radius: 4px;
+        border: 1px solid #ddd;
     }
 
-    /* --- Alineación de Columnas --- */
-    /* Centrar verticalmente el contenido de todas las columnas */
-    div[data-testid="column"] {
-        display: flex;
+    /* 2. Ajuste del contenedor de filas (Horizontal Block) */
+    div[data-testid="stHorizontalBlock"] {
         align-items: center;
-        padding: 0 2px !important; /* Reducir espacio entre columnas */
+        flex-wrap: nowrap !important; /* IMPORTANTE: No permitir que bajen */
+        gap: 2px !important; /* Reducir el espacio entre columnas al mínimo */
     }
 
-    /* La primera columna (texto del producto) alineada a la izquierda */
-    div[data-testid="column"]:first-child {
-        justify-content: flex-start;
-    }
-    
-    /* Las columnas de botones centradas horizontalmente */
-    div[data-testid="column"]:not(:first-child) {
-        justify-content: center;
+    /* 3. Ajuste de Columnas Individuales */
+    div[data-testid="column"] {
+        padding: 0px !important;
+        min-width: 0px !important; /* Permitir que se encojan */
+        flex: 1 1 auto; /* Flexibilidad base */
     }
 
-    /* --- OPTIMIZACIÓN PARA MÓVILES (CRÍTICO) --- */
+    /* --- REGLAS ESPECÍFICAS PARA MÓVIL --- */
     @media (max-width: 640px) {
-        /* Fuerza a las columnas a mantenerse en una sola fila */
+        /* Reducir gap aún más */
         div[data-testid="stHorizontalBlock"] {
-            flex-wrap: nowrap !important;
+            gap: 1px !important;
         }
-        
-        /* Ajustar el texto del producto para que ocupe menos espacio vertical */
-        div[data-testid="column"]:first-child p {
-            margin: 0 !important;
-            font-size: 14px !important;
-            line-height: 1.2 !important;
-        }
-        
-        /* Reducir aún más el padding de los botones en móvil */
-        .stButton button {
-            padding: 2px 0px !important;
-            font-size: 14px !important;
-        }
-    }
 
-    /* --- Otros Estilos --- */
-    .element-container {
-        transition: all 0.3s ease;
-    }
-    /* Reducir el espacio del divisor */
-    hr {
-        margin: 0.5em 0 !important;
+        /* Columna de TEXTO (la primera): Ocupa el espacio sobrante */
+        div[data-testid="column"]:first-child {
+            flex: 10 1 auto !important; /* Crece más que las otras */
+            padding-right: 5px !important;
+            overflow: hidden;
+        }
+
+        /* Columnas de BOTONES (las siguientes): Ancho fijo pequeño */
+        div[data-testid="column"]:not(:first-child) {
+            flex: 0 0 35px !important; /* Ancho fijo de 35px aprox */
+            max-width: 35px !important;
+        }
+        
+        /* Ajustar tamaño de fuente del texto */
+        div[data-testid="column"] p {
+            font-size: 13px !important;
+            margin: 0 !important;
+            white-space: nowrap; /* Evitar saltos de línea si se prefiere */
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -408,23 +404,23 @@ with tab3:
              st.success("🎉 ¡Auditoría Completada! Revisa los resultados abajo.")
 
         for cat in cats_pendientes:
-            # Desplegables cerrados por defecto
             with st.expander(f"📂 {cat}", expanded=False):
-                # Barra de acciones masivas con estilo más compacto
+                # --- BARRA DE ACCIÓN MASIVA (Responsive) ---
                 st.markdown(f"<div style='background-color:#f9f9f9; padding: 5px 0; border-radius:5px; margin-bottom:5px;'>", unsafe_allow_html=True)
-                cb_info, cb1, cb2, cb3 = st.columns([3, 1, 1, 1])
+                # OJO: Aquí usamos la misma lógica de columnas que abajo
+                cb_info, cb1, cb2, cb3 = st.columns([10, 2, 2, 2])
                 with cb_info:
-                    st.markdown(f"<small style='color:#666;'>Acciones masivas para <b>{cat}</b>:</small>", unsafe_allow_html=True)
+                    st.markdown(f"<small style='color:#666;'><b>{cat}</b> (Todos)</small>", unsafe_allow_html=True)
                 with cb1:
-                    if st.button("📦📉", key=f"all_ped_{cat}", help="Marcar TODOS como Sin Stock"):
+                    if st.button("📦📉", key=f"all_ped_{cat}", help="Todos Sin Stock"):
                         actualizar_categoria_completa(cat, 'pedido')
                         st.rerun()
                 with cb2:
-                    if st.button("✅", key=f"all_rep_{cat}", help="Marcar TODOS como Repuestos"):
+                    if st.button("✅", key=f"all_rep_{cat}", help="Todos Repuestos"):
                         actualizar_categoria_completa(cat, 'repuesto')
                         st.rerun()
                 with cb3:
-                    if st.button("❌", key=f"all_pen_{cat}", help="Marcar TODOS como Pendientes"):
+                    if st.button("❌", key=f"all_pen_{cat}", help="Todos Pendientes"):
                         actualizar_categoria_completa(cat, 'pendiente')
                         st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
@@ -432,21 +428,22 @@ with tab3:
                 items_visibles = [x for x in st.session_state.audit_data if x['categoria'] == cat and x['status'] is None]
                 
                 for item in items_visibles:
-                    # Proporción de columnas ajustada para dar más espacio al texto
-                    c1, c2, c3, c4 = st.columns([5, 1, 1, 1])
+                    # PROPORCIÓN AJUSTADA: Mucho espacio al texto, poco y fijo a los botones
+                    # [10, 2, 2, 2] asegura que el texto se "coma" el espacio y los botones queden chicos
+                    c1, c2, c3, c4 = st.columns([10, 2, 2, 2])
                     with c1:
-                        # Usamos markdown para un control más preciso del estilo del texto
-                        st.markdown(f"<span style='font-weight:500; font-size:15px;'>{item['cantidad']} x {item['producto']}</span>", unsafe_allow_html=True)
+                        # Texto del producto
+                        st.markdown(f"<span style='font-weight:500;'>{item['cantidad']} x {item['producto']}</span>", unsafe_allow_html=True)
                     with c2:
-                        if st.button("📦", key=f"p_{item['id']}", help="Sin Stock"):
+                        if st.button("📦", key=f"p_{item['id']}"):
                             actualizar_estado(item['id'], 'pedido')
                             st.rerun()
                     with c3:
-                        if st.button("✅", key=f"r_{item['id']}", help="Repuesto"):
+                        if st.button("✅", key=f"r_{item['id']}"):
                             actualizar_estado(item['id'], 'repuesto')
                             st.rerun()
                     with c4:
-                        if st.button("❌", key=f"n_{item['id']}", help="No necesario"):
+                        if st.button("❌", key=f"n_{item['id']}"):
                             actualizar_estado(item['id'], 'pendiente')
                             st.rerun()
                     st.divider()
@@ -465,6 +462,4 @@ with tab3:
             st.code(formatear_lista_texto(lpen, "Pendientes"), language='text')
 
 st.markdown("---")
-st.caption("Repositor Saphirus 27.0")
-
-
+st.caption("Repositor Saphirus 28.0")
