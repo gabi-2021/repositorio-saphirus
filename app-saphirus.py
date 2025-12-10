@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Repositor Saphirus", page_icon="✨", layout="centered")
-st.title("✨ Repositor Saphirus 33.0")
+st.title("✨ Repositor Saphirus 34.0")
 
 # --- ESTILOS CSS (Altura aumentada a 55px) ---
 st.markdown("""
@@ -345,7 +345,7 @@ def enviar_whatsapp(mensaje, creds):
         return False
 
 # --- UI PRINCIPAL ---
-tab1, tab2, tab3 = st.tabs(["📄 Procesar PDF", "➕ Sumar Listas", "✅ Auditoría en Vivo"])
+tab1, tab2, tab3, tab4 = st.tabs(["📄 Procesar PDF", "➕ Sumar Listas", "✅ Auditoría", "📊 Totales"])
 
 # TAB 1: PDF
 with tab1:
@@ -490,6 +490,67 @@ with tab3:
         with ft3:
             st.code(formatear_lista_texto(lpen, "Pendientes"), language='text')
 
-st.markdown("---")
-st.caption("Repositor Saphirus 33.0")
+# TAB 4: TOTALES POR CATEGORÍA
+with tab4:
+    st.header("📊 Calculadora de Totales")
+    st.info("Pega tu lista (ordenada o desordenada) para ver los totales por categoría.")
+    
+    list_input_totales = st.text_area("Pega la lista aquí:", height=300, placeholder="1 x AEROSOL UVA\n2 x TEXTIL ROCIO...")
+    
+    if st.button("🔢 Calcular Totales", type="primary", use_container_width=True):
+        if list_input_totales:
+            totales = {} # {Categoria: Cantidad}
+            lines = list_input_totales.split('\n')
+            
+            for line in lines:
+                line = line.strip()
+                if " x " in line:
+                    try:
+                        # Extraer datos
+                        parts = line.split(" x ", 1)
+                        qty = float(parts[0].strip())
+                        prod_name = parts[1].strip()
+                        
+                        # Detectar Categoría usando la función existente
+                        cat = detectar_categoria(prod_name)
+                        
+                        # Sumar
+                        totales[cat] = totales.get(cat, 0) + qty
+                    except:
+                        continue
+            
+            if totales:
+                # Mostrar Resultados
+                st.success("✅ Cálculo Completado")
+                
+                # Crear DataFrame para ordenar y graficar
+                df_totales = pd.DataFrame(list(totales.items()), columns=['Categoría', 'Total'])
+                df_totales = df_totales.sort_values('Total', ascending=False)
+                
+                # Métricas Globales
+                total_global = df_totales['Total'].sum()
+                # Formatear si es entero
+                total_fmt = int(total_global) if total_global.is_integer() else total_global
+                
+                st.metric("Total Global de Unidades", total_fmt)
+                
+                st.divider()
+                
+                # Gráfico
+                st.bar_chart(df_totales.set_index('Categoría'))
+                
+                # Tabla Detallada
+                st.subheader("📋 Detalle por Categoría")
+                # Formateo visual
+                for idx, row in df_totales.iterrows():
+                    q = row['Total']
+                    q_fmt = int(q) if q.is_integer() else q
+                    st.markdown(f"**{row['Categoría']}:** {q_fmt}")
+                    
+            else:
+                st.warning("⚠️ No se encontraron productos válidos en el formato 'Cantidad x Producto'.")
+        else:
+            st.warning("⚠️ Por favor pega una lista primero.")
 
+st.markdown("---")
+st.caption("Repositor Saphirus 34.0")
