@@ -14,22 +14,17 @@ logger = logging.getLogger(__name__)
 st.set_page_config(page_title="Repositor Saphirus", page_icon="✨", layout="centered")
 st.title("✨ Repositor Saphirus 35.0")
 
-# --- ESTILOS CSS (Altura aumentada a 55px) ---
+# --- ESTILOS CSS ---
 st.markdown("""
 <style>
-    /* 1. Reducir padding general */
     .block-container {
         padding-top: 1rem !important;
         padding-bottom: 3rem !important;
     }
-
-    /* 2. Compactar contenido de Expanders */
     div[data-testid="stExpander"] div[data-testid="stVerticalBlock"] {
         gap: 0rem !important;
         padding: 0rem !important;
     }
-    
-    /* 3. Estilo de Botones (Más altos y grandes) */
     .stButton button {
         background-color: transparent !important;
         border: none !important;
@@ -37,9 +32,9 @@ st.markdown("""
         color: inherit !important;
         padding: 0px !important;
         margin: 0px !important;
-        height: 55px !important; /* AUMENTADO A 55px */
+        height: 55px !important;
         min-height: 55px !important;
-        font-size: 24px !important; /* Icono más grande */
+        font-size: 24px !important;
         line-height: 1 !important;
         transition: background-color 0.2s;
     }
@@ -47,23 +42,18 @@ st.markdown("""
         background-color: rgba(0,0,0,0.05) !important;
         border-radius: 8px;
     }
-
-    /* 4. GRID layout para móviles (Altura 55px) */
     @media (max-width: 640px) {
         div[data-testid="stHorizontalBlock"] {
             display: grid !important;
-            /* Texto | Btn(50) | Btn(50) | Btn(50) */
             grid-template-columns: 1fr 50px 50px 50px !important; 
             gap: 2px !important;
             align-items: center !important;
-            
             border-bottom: 1px solid #e0e0e0;
             margin-bottom: 0px !important;
             padding-bottom: 0px !important;
             padding-top: 0px !important;
             min-height: 55px !important;
         }
-
         div[data-testid="column"] {
             width: auto !important;
             min-width: 0px !important;
@@ -72,14 +62,11 @@ st.markdown("""
             display: flex;
             align-items: center;
             justify-content: center;
-            height: 55px !important; /* Forzar altura de columna */
+            height: 55px !important;
         }
-
-        /* Texto del producto a la izquierda */
         div[data-testid="column"]:first-child {
             justify-content: flex-start;
         }
-
         div[data-testid="column"]:first-child p {
             font-size: 15px !important; 
             margin: 0 !important;
@@ -89,26 +76,16 @@ st.markdown("""
             line-height: 55px !important; 
             padding-left: 5px;
         }
-        
         div[data-testid="column"]:empty {
             display: none !important;
         }
     }
-    
-    /* Escritorio */
     @media (min-width: 641px) {
         div[data-testid="stHorizontalBlock"] {
              border-bottom: 1px solid #f0f0f0;
              padding-bottom: 5px;
              margin-bottom: 5px;
         }
-    }
-    
-    /* Estilo para la lista de totales */
-    .total-row {
-        font-size: 16px;
-        padding: 5px 0;
-        border-bottom: 1px dashed #eee;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -141,8 +118,7 @@ def cargar_credenciales():
 
 credentials = cargar_credenciales()
 
-# --- PATRONES DE CATEGORIZACIÓN ---
-# Usamos el sistema de prioridades del v33 para asegurar que todo se detecte en orden correcto
+# --- CATEGORIAS ---
 CATEGORIAS = {
     'touch_dispositivo': {'pattern': lambda p: "DISPOSITIVO" in p and "TOUCH" in p, 'emoji': "🖱️", 'nombre': "Dispositivos Touch", 'prioridad': 1},
     'touch_repuesto': {'pattern': lambda p: ("REPUESTO" in p and "TOUCH" in p) or "GR/13" in p, 'emoji': "🔄", 'nombre': "Repuestos de Touch", 'prioridad': 2},
@@ -173,9 +149,7 @@ CATEGORIAS = {
 }
 
 def detectar_categoria(producto):
-    """Detecta categoría respetando la prioridad definida"""
     p = producto.upper()
-    # Ordenamos por prioridad (menor número = mayor prioridad)
     for key, config in sorted(CATEGORIAS.items(), key=lambda x: x[1]['prioridad']):
         if config['pattern'](p):
             return f"{config['emoji']} {config['nombre']}"
@@ -448,8 +422,6 @@ with tab3:
                 # --- BARRA DE ACCIÓN MASIVA COMPLETA ---
                 st.markdown(f"<div style='background-color:#f9f9f9; padding: 5px 0; border-radius:5px; margin-bottom:5px; border-bottom: 1px solid #ddd;'>", unsafe_allow_html=True)
                 
-                # Restauramos las 4 columnas para que queden alineadas con los productos
-                # Texto (grande) + Btn 1 + Btn 2 + Btn 3
                 cb_info, cb1, cb2, cb3 = st.columns([1, 1, 1, 1]) 
                 
                 with cb_info:
@@ -471,7 +443,6 @@ with tab3:
                 items_visibles = [x for x in st.session_state.audit_data if x['categoria'] == cat and x['status'] is None]
                 
                 for item in items_visibles:
-                    # CSS Grid y altura 55px
                     c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
                     with c1:
                         st.markdown(f"<span style='font-weight:500;'>{item['cantidad']} x {item['producto']}</span>", unsafe_allow_html=True)
@@ -500,31 +471,44 @@ with tab3:
         with ft3:
             st.code(formatear_lista_texto(lpen, "Pendientes"), language='text')
 
-# TAB 4: TOTALES POR CATEGORÍA (NUEVO)
+# TAB 4: TOTALES POR CATEGORÍA (CORREGIDO)
 with tab4:
     st.header("📊 Calculadora de Totales")
-    st.info("Pega tu lista (desordenada) para ver los totales.")
+    st.info("Pega tu lista para ver los totales.")
     
-    list_input_totales = st.text_area("Pega la lista aquí:", height=300, placeholder="1 x AEROSOL UVA\n2 x TEXTIL ROCIO...")
+    list_input_totales = st.text_area("Pega la lista aquí:", height=300, placeholder="== CATEGORIA ==\n1 x PRODUCTO...")
     
     if st.button("🔢 Calcular Totales", type="primary", use_container_width=True):
         if list_input_totales:
             totales = {} # {Categoria: Cantidad}
+            categoria_actual = None # Para recordar el último encabezado visto
             lines = list_input_totales.split('\n')
             
             for line in lines:
                 line = line.strip()
+                if not line: continue
+                
+                # 1. Detectar Encabezado explícito (Ej: == ⚙️ APARATOS ==)
+                if line.startswith("==") and line.endswith("=="):
+                    # Limpiamos los "==" y espacios extra
+                    categoria_actual = line.replace("==", "").strip()
+                    continue
+                
+                # 2. Detectar Producto
                 if " x " in line:
                     try:
-                        # Extraer datos
                         parts = line.split(" x ", 1)
                         qty = float(parts[0].strip())
                         prod_name = parts[1].strip()
                         
-                        # Detectar Categoría usando la misma lógica del resto de la app
-                        cat = detectar_categoria(prod_name)
+                        # LÓGICA HÍBRIDA:
+                        if categoria_actual:
+                            # Si ya leímos un encabezado, confiamos en él
+                            cat = categoria_actual
+                        else:
+                            # Si es una lista suelta sin encabezados, intentamos detectar
+                            cat = detectar_categoria(prod_name)
                         
-                        # Sumar
                         totales[cat] = totales.get(cat, 0) + qty
                     except:
                         continue
@@ -537,9 +521,8 @@ with tab4:
                 for cat in sorted(totales.keys()):
                     q = totales[cat]
                     q_fmt = int(q) if q.is_integer() else q
-                    # Formato simple solicitado: "CATEGORIA: CANTIDAD"
                     st.markdown(f"**{cat}:** {q_fmt}")
-                    st.markdown("") # Espacio extra para legibilidad
+                    st.markdown("") 
                     
             else:
                 st.warning("⚠️ No se encontraron productos válidos.")
@@ -547,4 +530,4 @@ with tab4:
             st.warning("⚠️ Pega una lista primero.")
 
 st.markdown("---")
-st.caption("Repositor Saphirus 34.0")
+st.caption("Repositor Saphirus 35.0")
