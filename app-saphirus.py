@@ -471,7 +471,7 @@ with tab3:
         with ft3:
             st.code(formatear_lista_texto(lpen, "Pendientes"), language='text')
 
-# TAB 4: TOTALES POR CATEGORÍA (CORREGIDO)
+# TAB 4: TOTALES POR CATEGORÍA (Con botón de copiar)
 with tab4:
     st.header("📊 Calculadora de Totales")
     st.info("Pega tu lista para ver los totales.")
@@ -488,9 +488,8 @@ with tab4:
                 line = line.strip()
                 if not line: continue
                 
-                # 1. Detectar Encabezado explícito (Ej: == ⚙️ APARATOS ==)
+                # 1. Detectar Encabezado explícito
                 if line.startswith("==") and line.endswith("=="):
-                    # Limpiamos los "==" y espacios extra
                     categoria_actual = line.replace("==", "").strip()
                     continue
                 
@@ -503,10 +502,8 @@ with tab4:
                         
                         # LÓGICA HÍBRIDA:
                         if categoria_actual:
-                            # Si ya leímos un encabezado, confiamos en él
                             cat = categoria_actual
                         else:
-                            # Si es una lista suelta sin encabezados, intentamos detectar
                             cat = detectar_categoria(prod_name)
                         
                         totales[cat] = totales.get(cat, 0) + qty
@@ -515,14 +512,19 @@ with tab4:
             
             if totales:
                 st.subheader("📋 Detalle por Categoría")
-                st.markdown("---")
                 
-                # Ordenar alfabéticamente para facilitar la lectura
+                # --- NUEVA LÓGICA DE COPIADO ---
+                # 1. Construimos todo el reporte en una sola variable de texto
+                texto_reporte = ""
                 for cat in sorted(totales.keys()):
                     q = totales[cat]
                     q_fmt = int(q) if q.is_integer() else q
-                    st.markdown(f"**{cat}:** {q_fmt}")
-                    st.markdown("") 
+                    # Agregamos salto de línea doble para que quede espaciado
+                    texto_reporte += f"{cat}: {q_fmt}\n\n"
+                
+                # 2. Usamos st.code que tiene el BOTÓN DE COPIAR nativo en la esquina
+                st.code(texto_reporte, language='text')
+                # -------------------------------
                     
             else:
                 st.warning("⚠️ No se encontraron productos válidos.")
