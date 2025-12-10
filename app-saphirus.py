@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Repositor Saphirus", page_icon="✨", layout="centered")
-st.title("✨ Repositor Saphirus 34.0")
+st.title("✨ Repositor Saphirus 35.0")
 
 # --- ESTILOS CSS (Altura aumentada a 55px) ---
 st.markdown("""
@@ -103,6 +103,13 @@ st.markdown("""
              margin-bottom: 5px;
         }
     }
+    
+    /* Estilo para la lista de totales */
+    .total-row {
+        font-size: 16px;
+        padding: 5px 0;
+        border-bottom: 1px dashed #eee;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -135,38 +142,41 @@ def cargar_credenciales():
 credentials = cargar_credenciales()
 
 # --- PATRONES DE CATEGORIZACIÓN ---
+# Usamos el sistema de prioridades del v33 para asegurar que todo se detecte en orden correcto
 CATEGORIAS = {
-    'touch_dispositivo': {'pattern': lambda p: "DISPOSITIVO" in p and "TOUCH" in p, 'emoji': "🖱️", 'nombre': "Dispositivos Touch"},
-    'touch_repuesto': {'pattern': lambda p: ("REPUESTO" in p and "TOUCH" in p) or "GR/13" in p, 'emoji': "🔄", 'nombre': "Repuestos de Touch"},
-    'perfume_mini': {'pattern': lambda p: "MINI MILANO" in p, 'emoji': "🧴", 'nombre': "Perfume Mini Milano"},
-    'perfume_parfum': {'pattern': lambda p: "PARFUM" in p, 'emoji': "🧴", 'nombre': "Parfum / Perfumes"},
-    'shiny_general': {'pattern': lambda p: "SHINY" in p and ("LIMPIAVIDRIOS" in p or "DESENGRASANTE" in p or "LUSTRAMUEBLE" in p), 'emoji': "✨", 'nombre': "Shiny General"},
-    'ambar_aerosol': {'pattern': lambda p: "AMBAR" in p and "AEROSOL" in p, 'emoji': "🔸", 'nombre': "Aerosoles Ambar"},
-    'ambar_textil': {'pattern': lambda p: "AMBAR" in p and ("TEXTIL" in p or "150 ML" in p), 'emoji': "🔸", 'nombre': "Textiles Ambar"},
-    'ambar_sahumerio': {'pattern': lambda p: "AMBAR" in p and "SAHUMERIO" in p, 'emoji': "🔸", 'nombre': "Sahumerios Ambar"},
-    'ambar_varios': {'pattern': lambda p: "AMBAR" in p, 'emoji': "🔸", 'nombre': "Línea Ambar Varios"},
-    'home_spray': {'pattern': lambda p: "HOME SPRAY" in p or "500 ML" in p or "500ML" in p, 'emoji': "🏠", 'nombre': "Home Spray"},
-    'aparatos': {'pattern': lambda p: "APARATO" in p or "HORNILLO" in p, 'emoji': "⚙️", 'nombre': "Aparatos"},
-    'premium': {'pattern': lambda p: "PREMIUM" in p, 'emoji': "💎", 'nombre': "Difusores Premium"},
-    'sahumerio_hierbas': {'pattern': lambda p: "SAHUMERIO" in p and "HIERBAS" in p, 'emoji': "🌿", 'nombre': "Sahumerios Hierbas"},
-    'sahumerio_himalaya': {'pattern': lambda p: "SAHUMERIO" in p and "HIMALAYA" in p, 'emoji': "🏔️", 'nombre': "Sahumerios Himalaya"},
-    'sahumerio_varios': {'pattern': lambda p: "SAHUMERIO" in p, 'emoji': "🧘", 'nombre': "Sahumerios Varios"},
-    'auto_caritas': {'pattern': lambda p: "CARITAS" in p, 'emoji': "😎", 'nombre': "Autos - Caritas"},
-    'auto_ruta': {'pattern': lambda p: "RUTA" in p or "RUTA 66" in p, 'emoji': "🛣️", 'nombre': "Autos - Ruta 66"},
-    'auto_varios': {'pattern': lambda p: "AUTO" in p, 'emoji': "🚗", 'nombre': "Autos - Varios"},
-    'textil_mini': {'pattern': lambda p: "TEXTIL" in p and "MINI" in p, 'emoji': "🤏", 'nombre': "Textiles Mini"},
-    'textil': {'pattern': lambda p: "TEXTIL" in p, 'emoji': "👕", 'nombre': "Textiles Saphirus"},
-    'aerosol': {'pattern': lambda p: "AEROSOL" in p, 'emoji': "💨", 'nombre': "Aerosoles Saphirus"},
-    'difusor': {'pattern': lambda p: "DIFUSOR" in p or "VARILLA" in p, 'emoji': "🎍", 'nombre': "Difusores"},
-    'vela': {'pattern': lambda p: "VELA" in p, 'emoji': "🕯️", 'nombre': "Velas"},
-    'aceite': {'pattern': lambda p: "ACEITE" in p, 'emoji': "💧", 'nombre': "Aceites"},
-    'antihumedad': {'pattern': lambda p: "ANTIHUMEDAD" in p, 'emoji': "💧", 'nombre': "Antihumedad"},
-    'limpiador': {'pattern': lambda p: "LIMPIADOR" in p, 'emoji': "🧼", 'nombre': "Limpiadores Multisuperficies"},
+    'touch_dispositivo': {'pattern': lambda p: "DISPOSITIVO" in p and "TOUCH" in p, 'emoji': "🖱️", 'nombre': "Dispositivos Touch", 'prioridad': 1},
+    'touch_repuesto': {'pattern': lambda p: ("REPUESTO" in p and "TOUCH" in p) or "GR/13" in p, 'emoji': "🔄", 'nombre': "Repuestos de Touch", 'prioridad': 2},
+    'perfume_mini': {'pattern': lambda p: "MINI MILANO" in p, 'emoji': "🧴", 'nombre': "Perfume Mini Milano", 'prioridad': 3},
+    'perfume_parfum': {'pattern': lambda p: "PARFUM" in p, 'emoji': "🧴", 'nombre': "Parfum / Perfumes", 'prioridad': 4},
+    'shiny_general': {'pattern': lambda p: "SHINY" in p and ("LIMPIAVIDRIOS" in p or "DESENGRASANTE" in p or "LUSTRAMUEBLE" in p), 'emoji': "✨", 'nombre': "Shiny General", 'prioridad': 5},
+    'ambar_aerosol': {'pattern': lambda p: "AMBAR" in p and "AEROSOL" in p, 'emoji': "🔸", 'nombre': "Aerosoles Ambar", 'prioridad': 6},
+    'ambar_textil': {'pattern': lambda p: "AMBAR" in p and ("TEXTIL" in p or "150 ML" in p), 'emoji': "🔸", 'nombre': "Textiles Ambar", 'prioridad': 7},
+    'ambar_sahumerio': {'pattern': lambda p: "AMBAR" in p and "SAHUMERIO" in p, 'emoji': "🔸", 'nombre': "Sahumerios Ambar", 'prioridad': 8},
+    'ambar_varios': {'pattern': lambda p: "AMBAR" in p, 'emoji': "🔸", 'nombre': "Línea Ambar Varios", 'prioridad': 9},
+    'home_spray': {'pattern': lambda p: "HOME SPRAY" in p or "500 ML" in p or "500ML" in p, 'emoji': "🏠", 'nombre': "Home Spray", 'prioridad': 10},
+    'aparatos': {'pattern': lambda p: "APARATO" in p or "HORNILLO" in p, 'emoji': "⚙️", 'nombre': "Aparatos", 'prioridad': 11},
+    'premium': {'pattern': lambda p: "PREMIUM" in p, 'emoji': "💎", 'nombre': "Difusores Premium", 'prioridad': 12},
+    'sahumerio_hierbas': {'pattern': lambda p: "SAHUMERIO" in p and "HIERBAS" in p, 'emoji': "🌿", 'nombre': "Sahumerios Hierbas", 'prioridad': 13},
+    'sahumerio_himalaya': {'pattern': lambda p: "SAHUMERIO" in p and "HIMALAYA" in p, 'emoji': "🏔️", 'nombre': "Sahumerios Himalaya", 'prioridad': 14},
+    'sahumerio_varios': {'pattern': lambda p: "SAHUMERIO" in p, 'emoji': "🧘", 'nombre': "Sahumerios Varios", 'prioridad': 15},
+    'auto_caritas': {'pattern': lambda p: "CARITAS" in p, 'emoji': "😎", 'nombre': "Autos - Caritas", 'prioridad': 16},
+    'auto_ruta': {'pattern': lambda p: "RUTA" in p or "RUTA 66" in p, 'emoji': "🛣️", 'nombre': "Autos - Ruta 66", 'prioridad': 17},
+    'auto_varios': {'pattern': lambda p: "AUTO" in p, 'emoji': "🚗", 'nombre': "Autos - Varios", 'prioridad': 18},
+    'textil_mini': {'pattern': lambda p: "TEXTIL" in p and "MINI" in p, 'emoji': "🤏", 'nombre': "Textiles Mini", 'prioridad': 19},
+    'textil': {'pattern': lambda p: "TEXTIL" in p, 'emoji': "👕", 'nombre': "Textiles Saphirus", 'prioridad': 20},
+    'aerosol': {'pattern': lambda p: "AEROSOL" in p, 'emoji': "💨", 'nombre': "Aerosoles Saphirus", 'prioridad': 21},
+    'difusor': {'pattern': lambda p: "DIFUSOR" in p or "VARILLA" in p, 'emoji': "🎍", 'nombre': "Difusores", 'prioridad': 22},
+    'vela': {'pattern': lambda p: "VELA" in p, 'emoji': "🕯️", 'nombre': "Velas", 'prioridad': 23},
+    'aceite': {'pattern': lambda p: "ACEITE" in p, 'emoji': "💧", 'nombre': "Aceites", 'prioridad': 24},
+    'antihumedad': {'pattern': lambda p: "ANTIHUMEDAD" in p, 'emoji': "💧", 'nombre': "Antihumedad", 'prioridad': 25},
+    'limpiador': {'pattern': lambda p: "LIMPIADOR" in p, 'emoji': "🧼", 'nombre': "Limpiadores Multisuperficies", 'prioridad': 26},
 }
 
 def detectar_categoria(producto):
+    """Detecta categoría respetando la prioridad definida"""
     p = producto.upper()
-    for key, config in CATEGORIAS.items():
+    # Ordenamos por prioridad (menor número = mayor prioridad)
+    for key, config in sorted(CATEGORIAS.items(), key=lambda x: x[1]['prioridad']):
         if config['pattern'](p):
             return f"{config['emoji']} {config['nombre']}"
     return "📦 Varios"
@@ -490,10 +500,10 @@ with tab3:
         with ft3:
             st.code(formatear_lista_texto(lpen, "Pendientes"), language='text')
 
-# TAB 4: TOTALES POR CATEGORÍA
+# TAB 4: TOTALES POR CATEGORÍA (NUEVO)
 with tab4:
     st.header("📊 Calculadora de Totales")
-    st.info("Pega tu lista (ordenada o desordenada) para ver los totales por categoría.")
+    st.info("Pega tu lista (desordenada) para ver los totales.")
     
     list_input_totales = st.text_area("Pega la lista aquí:", height=300, placeholder="1 x AEROSOL UVA\n2 x TEXTIL ROCIO...")
     
@@ -511,7 +521,7 @@ with tab4:
                         qty = float(parts[0].strip())
                         prod_name = parts[1].strip()
                         
-                        # Detectar Categoría usando la función existente
+                        # Detectar Categoría usando la misma lógica del resto de la app
                         cat = detectar_categoria(prod_name)
                         
                         # Sumar
@@ -520,37 +530,21 @@ with tab4:
                         continue
             
             if totales:
-                # Mostrar Resultados
-                st.success("✅ Cálculo Completado")
-                
-                # Crear DataFrame para ordenar y graficar
-                df_totales = pd.DataFrame(list(totales.items()), columns=['Categoría', 'Total'])
-                df_totales = df_totales.sort_values('Total', ascending=False)
-                
-                # Métricas Globales
-                total_global = df_totales['Total'].sum()
-                # Formatear si es entero
-                total_fmt = int(total_global) if total_global.is_integer() else total_global
-                
-                st.metric("Total Global de Unidades", total_fmt)
-                
-                st.divider()
-                
-                # Gráfico
-                st.bar_chart(df_totales.set_index('Categoría'))
-                
-                # Tabla Detallada
                 st.subheader("📋 Detalle por Categoría")
-                # Formateo visual
-                for idx, row in df_totales.iterrows():
-                    q = row['Total']
+                st.markdown("---")
+                
+                # Ordenar alfabéticamente para facilitar la lectura
+                for cat in sorted(totales.keys()):
+                    q = totales[cat]
                     q_fmt = int(q) if q.is_integer() else q
-                    st.markdown(f"**{row['Categoría']}:** {q_fmt}")
+                    # Formato simple solicitado: "CATEGORIA: CANTIDAD"
+                    st.markdown(f"**{cat}:** {q_fmt}")
+                    st.markdown("") # Espacio extra para legibilidad
                     
             else:
-                st.warning("⚠️ No se encontraron productos válidos en el formato 'Cantidad x Producto'.")
+                st.warning("⚠️ No se encontraron productos válidos.")
         else:
-            st.warning("⚠️ Por favor pega una lista primero.")
+            st.warning("⚠️ Pega una lista primero.")
 
 st.markdown("---")
 st.caption("Repositor Saphirus 34.0")
