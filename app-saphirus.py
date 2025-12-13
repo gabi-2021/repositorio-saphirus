@@ -12,19 +12,22 @@ logger = logging.getLogger(__name__)
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Repositor Saphirus", page_icon="✨", layout="centered")
-st.title("✨ Repositor Saphirus 35.0")
+st.title("✨ Repositor Saphirus 36.0")
 
-# --- ESTILOS CSS ---
+# --- ESTILOS CSS REPARADOS PARA MÓVIL ---
 st.markdown("""
 <style>
+    /* 1. Ajustes generales de espaciado */
     .block-container {
         padding-top: 1rem !important;
-        padding-bottom: 3rem !important;
+        padding-bottom: 5rem !important;
     }
     div[data-testid="stExpander"] div[data-testid="stVerticalBlock"] {
         gap: 0rem !important;
         padding: 0rem !important;
     }
+    
+    /* 2. Estilo de Botones (Iconos grandes, sin bordes molestos) */
     .stButton button {
         background-color: transparent !important;
         border: none !important;
@@ -32,54 +35,68 @@ st.markdown("""
         color: inherit !important;
         padding: 0px !important;
         margin: 0px !important;
-        height: 55px !important;
-        min-height: 55px !important;
-        font-size: 24px !important;
+        height: 50px !important; 
+        min-height: 50px !important;
+        font-size: 22px !important;
         line-height: 1 !important;
-        transition: background-color 0.2s;
     }
     .stButton button:hover {
         background-color: rgba(0,0,0,0.05) !important;
-        border-radius: 8px;
+        border-radius: 50%; /* Efecto redondo al tocar */
     }
+
+    /* 3. GRID LAYOUT ROBUSTO PARA MÓVILES */
     @media (max-width: 640px) {
+        /* Contenedor de la fila */
         div[data-testid="stHorizontalBlock"] {
             display: grid !important;
-            grid-template-columns: 1fr 50px 50px 50px !important; 
-            gap: 2px !important;
+            /* Texto (resto) | Btn | Btn | Btn */
+            /* Usamos 45px fijos para asegurar que entren en cualquier pantalla */
+            grid-template-columns: 1fr 45px 45px 45px !important; 
+            gap: 0px !important;
             align-items: center !important;
-            border-bottom: 1px solid #e0e0e0;
+            
+            border-bottom: 1px solid #f0f0f0;
             margin-bottom: 0px !important;
-            padding-bottom: 0px !important;
-            padding-top: 0px !important;
-            min-height: 55px !important;
+            padding: 2px 0px !important;
+            min-height: 50px !important;
         }
+
+        /* Columnas individuales */
         div[data-testid="column"] {
             width: auto !important;
-            min-width: 0px !important;
+            min-width: 0px !important; /* CRÍTICO: Permite que el texto se encoja */
             flex: unset !important;
             padding: 0 !important;
             display: flex;
             align-items: center;
             justify-content: center;
-            height: 55px !important;
+            height: 100% !important;
         }
+
+        /* Columna 1: Texto del producto */
         div[data-testid="column"]:first-child {
-            justify-content: flex-start;
+            justify-content: flex-start; /* Alinear izquierda */
+            overflow: hidden; /* Cortar texto largo */
         }
+
         div[data-testid="column"]:first-child p {
-            font-size: 15px !important; 
+            font-size: 14px !important; 
             margin: 0 !important;
-            white-space: nowrap;
+            white-space: nowrap; /* No saltar de línea */
             overflow: hidden;
-            text-overflow: ellipsis;
-            line-height: 55px !important; 
+            text-overflow: ellipsis; /* Poner "..." si es muy largo */
             padding-left: 5px;
+            padding-right: 5px;
         }
+        
+        /* Ocultar elementos fantasma de Streamlit */
         div[data-testid="column"]:empty {
             display: none !important;
         }
     }
+    
+    /* Escritorio */
     @media (min-width: 641px) {
         div[data-testid="stHorizontalBlock"] {
              border-bottom: 1px solid #f0f0f0;
@@ -118,8 +135,21 @@ def cargar_credenciales():
 
 credentials = cargar_credenciales()
 
-# --- CATEGORIAS ---
+# --- CATEGORIAS (Con las nuevas adiciones) ---
 CATEGORIAS = {
+    # Nuevas Categorías
+    'tarjeta': {'pattern': lambda p: "TARJETA" in p and "AROMATICA" in p, 'emoji': "💳", 'nombre': "Tarjetas Aromáticas", 'prioridad': 0.5}, # Alta prioridad
+    
+    # Lógica Anti-Confusión para Sahumerio Saphirus:
+    # Debe tener "SAHUMERIO" y "SAPHIRUS" PERO NO "AMBAR", "HIMALAYA" ni "HIERBAS"
+    'sahumerio_saphirus': {
+        'pattern': lambda p: "SAHUMERIO" in p and "SAPHIRUS" in p and not any(x in p for x in ["AMBAR", "HIMALAYA", "HIERBAS"]), 
+        'emoji': "🧘‍♂️", 
+        'nombre': "Sahumerios Saphirus", 
+        'prioridad': 14.5 # Justo antes de Sahumerios Varios
+    },
+
+    # Resto de categorías existentes
     'touch_dispositivo': {'pattern': lambda p: "DISPOSITIVO" in p and "TOUCH" in p, 'emoji': "🖱️", 'nombre': "Dispositivos Touch", 'prioridad': 1},
     'touch_repuesto': {'pattern': lambda p: ("REPUESTO" in p and "TOUCH" in p) or "GR/13" in p, 'emoji': "🔄", 'nombre': "Repuestos de Touch", 'prioridad': 2},
     'perfume_mini': {'pattern': lambda p: "MINI MILANO" in p, 'emoji': "🧴", 'nombre': "Perfume Mini Milano", 'prioridad': 3},
@@ -155,9 +185,11 @@ def detectar_categoria(producto):
             return f"{config['emoji']} {config['nombre']}"
     return "📦 Varios"
 
-# --- REGLAS DE LIMPIEZA ---
+# --- REGLAS DE LIMPIEZA (Actualizadas) ---
 REGLAS_LIMPIEZA = {
     'general': [(r"\s*[-–]?\s*SAPHIRUS.*$", ""), (r"\s*[-–]?\s*AMBAR.*$", ""), (r"^[-–]\s*", ""), (r"\s*[-–]$", "")],
+    'tarjeta': [(r"^TARJETA AROMATICA SAPHIRUS\s*", ""), (r"^TARJETA AROMATICA\s*", "")],
+    'sahumerio_saphirus': [(r"^SAHUMERIO SAPHIRUS\s*[-–]?\s*", "")], # Limpieza específica
     'shiny_general': [(r"^LIMPIAVIDRIOS.*", "LIMPIAVIDRIOS"), (r"^DESENGRASANTE.*", "DESENGRASANTE"), (r"^LUSTRAMUEBLES?.*", "LUSTRAMUEBLE")],
     'limpiadores': [(r"^LIMPIADOR\s+LIQUIDO\s+MULTISUPERFICIES\s*250\s*ML\s*[-–]?\s*SHINY\s*[-–]?\s*", ""), (r"\s*\d{4,6}$", "")],
     'premium': [(r"^DIFUSOR PREMIUM\s*[-–]?\s*", ""), (r"\s*[-–]?\s*AROMATICO.*$", "")],
@@ -188,12 +220,16 @@ def limpiar_producto_por_categoria(row):
     cat = row["Categoria"]
     nom = row["Producto"]
     mapeo = {
+        "Tarjetas Aromáticas": 'tarjeta', # Nueva
+        "Sahumerios Saphirus": 'sahumerio_saphirus', # Nueva
         "Shiny General": 'shiny_general', "Limpiadores": 'limpiadores', "Difusores Premium": 'premium', "Aceites": 'aceites', 
         "Sahumerios Ambar": 'sahumerio_ambar', "Repuestos de Touch": 'repuesto_touch', "Dispositivos Touch": 'dispositivo_touch', 
         "Antihumedad": 'antihumedad', "Perfume": 'perfumes', "Parfum": 'perfumes', "Aparatos": 'aparatos', 
         "Sahumerios": 'sahumerio_tipo', "Home Spray": 'home_spray', "Textiles Mini": 'textil_mini', "Textiles": 'textil',
         "Autos": 'autos', "Aerosoles": 'aerosol', "Difusores": 'difusor', "Velas": 'velas',
     }
+    
+    # Buscar regla específica en el mapeo (por nombre de categoría)
     for key, regla in mapeo.items():
         if key in cat:
             if regla == 'shiny_general': return aplicar_reglas(nom, REGLAS_LIMPIEZA['shiny_general'])
@@ -201,10 +237,12 @@ def limpiar_producto_por_categoria(row):
                  res = aplicar_reglas(nom, REGLAS_LIMPIEZA['aparatos'])
                  if res == nom: res = res.replace("APARATO ANALOGICO DECO", "ANALOGICO")
                  return res
+            
             resultado = aplicar_reglas(nom, REGLAS_LIMPIEZA.get(regla, []))
             resultado = aplicar_reglas(resultado, REGLAS_LIMPIEZA['general'])
             if "Touch" in cat and "REPUESTO NEGRO" in resultado: resultado = resultado.replace("REPUESTO NEGRO", "NEGRO + REPUESTO")
             return resultado if len(resultado) >= 2 else nom
+            
     return aplicar_reglas(nom, REGLAS_LIMPIEZA['general'])
 
 # --- PROCESAMIENTO PDF ---
@@ -419,23 +457,23 @@ with tab3:
 
         for cat in cats_pendientes:
             with st.expander(f"📂 {cat}", expanded=False):
-                # --- BARRA DE ACCIÓN MASIVA COMPLETA ---
+                # --- BARRA DE ACCIÓN MASIVA (Grid) ---
                 st.markdown(f"<div style='background-color:#f9f9f9; padding: 5px 0; border-radius:5px; margin-bottom:5px; border-bottom: 1px solid #ddd;'>", unsafe_allow_html=True)
                 
                 cb_info, cb1, cb2, cb3 = st.columns([1, 1, 1, 1]) 
                 
                 with cb_info:
-                    st.markdown(f"<small style='color:#666; padding-left: 4px; line-height: 55px;'><b>{cat}</b></small>", unsafe_allow_html=True)
+                    st.markdown(f"<small style='color:#666; padding-left: 4px;'><b>{cat}</b></small>", unsafe_allow_html=True)
                 with cb1:
-                    if st.button("📦", key=f"all_ped_{cat}", help="Marcar TODOS como Sin Stock"):
+                    if st.button("📦📉", key=f"all_ped_{cat}", help="Todos Sin Stock"):
                         actualizar_categoria_completa(cat, 'pedido')
                         st.rerun()
                 with cb2:
-                    if st.button("✅", key=f"all_rep_{cat}", help="Marcar TODOS como Repuestos"):
+                    if st.button("✅", key=f"all_rep_{cat}", help="Todos Repuestos"):
                         actualizar_categoria_completa(cat, 'repuesto')
                         st.rerun()
                 with cb3:
-                    if st.button("❌", key=f"all_pen_{cat}", help="Marcar TODOS como Pendientes"):
+                    if st.button("❌", key=f"all_pen_{cat}", help="Todos Pendientes"):
                         actualizar_categoria_completa(cat, 'pendiente')
                         st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
@@ -471,7 +509,7 @@ with tab3:
         with ft3:
             st.code(formatear_lista_texto(lpen, "Pendientes"), language='text')
 
-# TAB 4: TOTALES POR CATEGORÍA (Con botón de copiar)
+# TAB 4: TOTALES POR CATEGORÍA
 with tab4:
     st.header("📊 Calculadora de Totales")
     st.info("Pega tu lista para ver los totales.")
@@ -481,26 +519,23 @@ with tab4:
     if st.button("🔢 Calcular Totales", type="primary", use_container_width=True):
         if list_input_totales:
             totales = {} # {Categoria: Cantidad}
-            categoria_actual = None # Para recordar el último encabezado visto
+            categoria_actual = None 
             lines = list_input_totales.split('\n')
             
             for line in lines:
                 line = line.strip()
                 if not line: continue
                 
-                # 1. Detectar Encabezado explícito
                 if line.startswith("==") and line.endswith("=="):
                     categoria_actual = line.replace("==", "").strip()
                     continue
                 
-                # 2. Detectar Producto
                 if " x " in line:
                     try:
                         parts = line.split(" x ", 1)
                         qty = float(parts[0].strip())
                         prod_name = parts[1].strip()
                         
-                        # LÓGICA HÍBRIDA:
                         if categoria_actual:
                             cat = categoria_actual
                         else:
@@ -513,16 +548,13 @@ with tab4:
             if totales:
                 st.subheader("📋 Detalle por Categoría")
                 
-                # --- NUEVA LÓGICA DE COPIADO ---
-                # 1. Construimos todo el reporte en una sola variable de texto
+                # --- LÓGICA DE COPIADO ---
                 texto_reporte = ""
                 for cat in sorted(totales.keys()):
                     q = totales[cat]
                     q_fmt = int(q) if q.is_integer() else q
-                    # Agregamos salto de línea doble para que quede espaciado
                     texto_reporte += f"{cat}: {q_fmt}\n\n"
                 
-                # 2. Usamos st.code que tiene el BOTÓN DE COPIAR nativo en la esquina
                 st.code(texto_reporte, language='text')
                 # -------------------------------
                     
@@ -532,4 +564,4 @@ with tab4:
             st.warning("⚠️ Pega una lista primero.")
 
 st.markdown("---")
-st.caption("Repositor Saphirus 35.0")
+st.caption("Repositor Saphirus 36.0")
