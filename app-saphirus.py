@@ -12,12 +12,11 @@ logger = logging.getLogger(__name__)
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Repositor Saphirus", page_icon="✨", layout="centered")
-st.title("✨ Repositor Saphirus 36.0")
+st.title("✨ Repositor Saphirus 37.0")
 
-# --- ESTILOS CSS REPARADOS PARA MÓVIL ---
+# --- ESTILOS CSS QUIRÚRGICOS ---
 st.markdown("""
 <style>
-    /* 1. Ajustes generales de espaciado */
     .block-container {
         padding-top: 1rem !important;
         padding-bottom: 5rem !important;
@@ -27,7 +26,7 @@ st.markdown("""
         padding: 0rem !important;
     }
     
-    /* 2. Estilo de Botones (Iconos grandes, sin bordes molestos) */
+    /* Estilo Base de Botones */
     .stButton button {
         background-color: transparent !important;
         border: none !important;
@@ -42,30 +41,32 @@ st.markdown("""
     }
     .stButton button:hover {
         background-color: rgba(0,0,0,0.05) !important;
-        border-radius: 50%; /* Efecto redondo al tocar */
+        border-radius: 50%;
     }
 
-    /* 3. GRID LAYOUT ROBUSTO PARA MÓVILES */
+    /* --- LÓGICA DE GRID SOLO PARA FILAS DE AUDITORÍA (4 COLUMNAS) --- */
     @media (max-width: 640px) {
-        /* Contenedor de la fila */
-        div[data-testid="stHorizontalBlock"] {
+        
+        /* SELECTOR MAESTRO: Solo aplica este estilo si la fila tiene 
+           exactamente un 4to hijo (columna). Esto aísla la fila de auditoría
+           y NO rompe la fila de "Sumar Listas" (que tiene 2 columnas).
+        */
+        div[data-testid="stHorizontalBlock"]:has(div[data-testid="column"]:nth-child(4)) {
             display: grid !important;
-            /* Texto (resto) | Btn | Btn | Btn */
-            /* Usamos 45px fijos para asegurar que entren en cualquier pantalla */
+            /* Texto | Btn | Btn | Btn (Ancho fijo para botones) */
             grid-template-columns: 1fr 45px 45px 45px !important; 
             gap: 0px !important;
             align-items: center !important;
-            
             border-bottom: 1px solid #f0f0f0;
             margin-bottom: 0px !important;
             padding: 2px 0px !important;
             min-height: 50px !important;
         }
 
-        /* Columnas individuales */
-        div[data-testid="column"] {
+        /* Aplicar estilos a las columnas SOLO si están dentro de este bloque especial */
+        div[data-testid="stHorizontalBlock"]:has(div[data-testid="column"]:nth-child(4)) > div[data-testid="column"] {
             width: auto !important;
-            min-width: 0px !important; /* CRÍTICO: Permite que el texto se encoja */
+            min-width: 0px !important;
             flex: unset !important;
             padding: 0 !important;
             display: flex;
@@ -74,29 +75,28 @@ st.markdown("""
             height: 100% !important;
         }
 
-        /* Columna 1: Texto del producto */
-        div[data-testid="column"]:first-child {
-            justify-content: flex-start; /* Alinear izquierda */
-            overflow: hidden; /* Cortar texto largo */
+        /* Alineación del texto (1ra columna) */
+        div[data-testid="stHorizontalBlock"]:has(div[data-testid="column"]:nth-child(4)) > div[data-testid="column"]:first-child {
+            justify-content: flex-start;
+            overflow: hidden;
         }
 
-        div[data-testid="column"]:first-child p {
+        /* Formato del texto */
+        div[data-testid="stHorizontalBlock"]:has(div[data-testid="column"]:nth-child(4)) > div[data-testid="column"]:first-child p {
             font-size: 14px !important; 
             margin: 0 !important;
-            white-space: nowrap; /* No saltar de línea */
+            white-space: nowrap;
             overflow: hidden;
-            text-overflow: ellipsis; /* Poner "..." si es muy largo */
+            text-overflow: ellipsis;
             padding-left: 5px;
             padding-right: 5px;
         }
         
-        /* Ocultar elementos fantasma de Streamlit */
         div[data-testid="column"]:empty {
             display: none !important;
         }
     }
     
-    /* Escritorio */
     @media (min-width: 641px) {
         div[data-testid="stHorizontalBlock"] {
              border-bottom: 1px solid #f0f0f0;
@@ -135,21 +135,17 @@ def cargar_credenciales():
 
 credentials = cargar_credenciales()
 
-# --- CATEGORIAS (Con las nuevas adiciones) ---
+# --- CATEGORIAS ---
 CATEGORIAS = {
-    # Nuevas Categorías
-    'tarjeta': {'pattern': lambda p: "TARJETA" in p and "AROMATICA" in p, 'emoji': "💳", 'nombre': "Tarjetas Aromáticas", 'prioridad': 0.5}, # Alta prioridad
+    'tarjeta': {'pattern': lambda p: "TARJETA" in p and "AROMATICA" in p, 'emoji': "💳", 'nombre': "Tarjetas Aromáticas", 'prioridad': 0.5},
     
-    # Lógica Anti-Confusión para Sahumerio Saphirus:
-    # Debe tener "SAHUMERIO" y "SAPHIRUS" PERO NO "AMBAR", "HIMALAYA" ni "HIERBAS"
     'sahumerio_saphirus': {
         'pattern': lambda p: "SAHUMERIO" in p and "SAPHIRUS" in p and not any(x in p for x in ["AMBAR", "HIMALAYA", "HIERBAS"]), 
         'emoji': "🧘‍♂️", 
         'nombre': "Sahumerios Saphirus", 
-        'prioridad': 14.5 # Justo antes de Sahumerios Varios
+        'prioridad': 14.5
     },
 
-    # Resto de categorías existentes
     'touch_dispositivo': {'pattern': lambda p: "DISPOSITIVO" in p and "TOUCH" in p, 'emoji': "🖱️", 'nombre': "Dispositivos Touch", 'prioridad': 1},
     'touch_repuesto': {'pattern': lambda p: ("REPUESTO" in p and "TOUCH" in p) or "GR/13" in p, 'emoji': "🔄", 'nombre': "Repuestos de Touch", 'prioridad': 2},
     'perfume_mini': {'pattern': lambda p: "MINI MILANO" in p, 'emoji': "🧴", 'nombre': "Perfume Mini Milano", 'prioridad': 3},
@@ -185,11 +181,12 @@ def detectar_categoria(producto):
             return f"{config['emoji']} {config['nombre']}"
     return "📦 Varios"
 
-# --- REGLAS DE LIMPIEZA (Actualizadas) ---
+# --- REGLAS DE LIMPIEZA CORREGIDAS ---
 REGLAS_LIMPIEZA = {
     'general': [(r"\s*[-–]?\s*SAPHIRUS.*$", ""), (r"\s*[-–]?\s*AMBAR.*$", ""), (r"^[-–]\s*", ""), (r"\s*[-–]$", "")],
-    'tarjeta': [(r"^TARJETA AROMATICA SAPHIRUS\s*", ""), (r"^TARJETA AROMATICA\s*", "")],
-    'sahumerio_saphirus': [(r"^SAHUMERIO SAPHIRUS\s*[-–]?\s*", "")], # Limpieza específica
+    # CORRECCIÓN AQUÍ: Regex más flexible para borrar "TARJETA AROMATICA [SAPHIRUS]" y espacios extra
+    'tarjeta': [(r"^TARJETA\s+AROMATICA(\s+SAPHIRUS)?\s*", "")],
+    'sahumerio_saphirus': [(r"^SAHUMERIO SAPHIRUS\s*[-–]?\s*", "")],
     'shiny_general': [(r"^LIMPIAVIDRIOS.*", "LIMPIAVIDRIOS"), (r"^DESENGRASANTE.*", "DESENGRASANTE"), (r"^LUSTRAMUEBLES?.*", "LUSTRAMUEBLE")],
     'limpiadores': [(r"^LIMPIADOR\s+LIQUIDO\s+MULTISUPERFICIES\s*250\s*ML\s*[-–]?\s*SHINY\s*[-–]?\s*", ""), (r"\s*\d{4,6}$", "")],
     'premium': [(r"^DIFUSOR PREMIUM\s*[-–]?\s*", ""), (r"\s*[-–]?\s*AROMATICO.*$", "")],
@@ -220,8 +217,8 @@ def limpiar_producto_por_categoria(row):
     cat = row["Categoria"]
     nom = row["Producto"]
     mapeo = {
-        "Tarjetas Aromáticas": 'tarjeta', # Nueva
-        "Sahumerios Saphirus": 'sahumerio_saphirus', # Nueva
+        "Tarjetas Aromáticas": 'tarjeta', 
+        "Sahumerios Saphirus": 'sahumerio_saphirus', 
         "Shiny General": 'shiny_general', "Limpiadores": 'limpiadores', "Difusores Premium": 'premium', "Aceites": 'aceites', 
         "Sahumerios Ambar": 'sahumerio_ambar', "Repuestos de Touch": 'repuesto_touch', "Dispositivos Touch": 'dispositivo_touch', 
         "Antihumedad": 'antihumedad', "Perfume": 'perfumes', "Parfum": 'perfumes', "Aparatos": 'aparatos', 
@@ -229,7 +226,6 @@ def limpiar_producto_por_categoria(row):
         "Autos": 'autos', "Aerosoles": 'aerosol', "Difusores": 'difusor', "Velas": 'velas',
     }
     
-    # Buscar regla específica en el mapeo (por nombre de categoría)
     for key, regla in mapeo.items():
         if key in cat:
             if regla == 'shiny_general': return aplicar_reglas(nom, REGLAS_LIMPIEZA['shiny_general'])
@@ -564,4 +560,4 @@ with tab4:
             st.warning("⚠️ Pega una lista primero.")
 
 st.markdown("---")
-st.caption("Repositor Saphirus 36.0")
+st.caption("Repositor Saphirus 37.0")
