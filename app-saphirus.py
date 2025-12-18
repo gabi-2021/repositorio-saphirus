@@ -12,11 +12,12 @@ logger = logging.getLogger(__name__)
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Repositor Saphirus", page_icon="✨", layout="centered")
-st.title("✨ Repositor Saphirus 37.0")
+st.title("✨ Repositor Saphirus 39.0")
 
-# --- ESTILOS CSS QUIRÚRGICOS ---
+# --- ESTILOS CSS "NUCLEAR" (EL QUE FUNCIONA SIEMPRE) ---
 st.markdown("""
 <style>
+    /* 1. Ajustes de espaciado */
     .block-container {
         padding-top: 1rem !important;
         padding-bottom: 5rem !important;
@@ -26,7 +27,7 @@ st.markdown("""
         padding: 0rem !important;
     }
     
-    /* Estilo Base de Botones */
+    /* 2. Estilo de Botones (Iconos grandes) */
     .stButton button {
         background-color: transparent !important;
         border: none !important;
@@ -44,27 +45,25 @@ st.markdown("""
         border-radius: 50%;
     }
 
-    /* --- LÓGICA DE GRID SOLO PARA FILAS DE AUDITORÍA (4 COLUMNAS) --- */
+    /* 3. GRID LAYOUT FIJO PARA MÓVILES (ESTILO v36) */
     @media (max-width: 640px) {
-        
-        /* SELECTOR MAESTRO: Solo aplica este estilo si la fila tiene 
-           exactamente un 4to hijo (columna). Esto aísla la fila de auditoría
-           y NO rompe la fila de "Sumar Listas" (que tiene 2 columnas).
-        */
-        div[data-testid="stHorizontalBlock"]:has(div[data-testid="column"]:nth-child(4)) {
+        /* Forzamos a que CUALQUIER fila de columnas se comporte como la grilla de auditoría.
+           Por eso quitamos las columnas en las otras pestañas, para no romperlas. */
+        div[data-testid="stHorizontalBlock"] {
             display: grid !important;
-            /* Texto | Btn | Btn | Btn (Ancho fijo para botones) */
+            /* Texto | Btn | Btn | Btn */
             grid-template-columns: 1fr 45px 45px 45px !important; 
             gap: 0px !important;
             align-items: center !important;
+            
             border-bottom: 1px solid #f0f0f0;
             margin-bottom: 0px !important;
             padding: 2px 0px !important;
             min-height: 50px !important;
         }
 
-        /* Aplicar estilos a las columnas SOLO si están dentro de este bloque especial */
-        div[data-testid="stHorizontalBlock"]:has(div[data-testid="column"]:nth-child(4)) > div[data-testid="column"] {
+        /* Ajuste de celdas */
+        div[data-testid="column"] {
             width: auto !important;
             min-width: 0px !important;
             flex: unset !important;
@@ -75,14 +74,14 @@ st.markdown("""
             height: 100% !important;
         }
 
-        /* Alineación del texto (1ra columna) */
-        div[data-testid="stHorizontalBlock"]:has(div[data-testid="column"]:nth-child(4)) > div[data-testid="column"]:first-child {
+        /* Texto alineado a la izquierda */
+        div[data-testid="column"]:first-child {
             justify-content: flex-start;
             overflow: hidden;
         }
 
-        /* Formato del texto */
-        div[data-testid="stHorizontalBlock"]:has(div[data-testid="column"]:nth-child(4)) > div[data-testid="column"]:first-child p {
+        /* Formato de texto compacto */
+        div[data-testid="column"]:first-child p {
             font-size: 14px !important; 
             margin: 0 !important;
             white-space: nowrap;
@@ -97,6 +96,7 @@ st.markdown("""
         }
     }
     
+    /* Escritorio */
     @media (min-width: 641px) {
         div[data-testid="stHorizontalBlock"] {
              border-bottom: 1px solid #f0f0f0;
@@ -135,17 +135,28 @@ def cargar_credenciales():
 
 credentials = cargar_credenciales()
 
-# --- CATEGORIAS ---
+# --- CATEGORIAS (Con Disney) ---
 CATEGORIAS = {
+    # Nuevas Disney (Prioridad Alta 0.X)
+    'textil_disney': {
+        'pattern': lambda p: "TEXTIL" in p and "DISNEY" in p, 
+        'emoji': "🏰", 'nombre': "Textiles Disney", 'prioridad': 0.1
+    },
+    'difusor_disney': {
+        'pattern': lambda p: "DIFUSOR" in p and "DISNEY" in p, 
+        'emoji': "🏰", 'nombre': "Difusores Disney", 'prioridad': 0.2
+    },
+    
+    # Tarjetas
     'tarjeta': {'pattern': lambda p: "TARJETA" in p and "AROMATICA" in p, 'emoji': "💳", 'nombre': "Tarjetas Aromáticas", 'prioridad': 0.5},
     
+    # Sahumerios
     'sahumerio_saphirus': {
         'pattern': lambda p: "SAHUMERIO" in p and "SAPHIRUS" in p and not any(x in p for x in ["AMBAR", "HIMALAYA", "HIERBAS"]), 
-        'emoji': "🧘‍♂️", 
-        'nombre': "Sahumerios Saphirus", 
-        'prioridad': 14.5
+        'emoji': "🧘‍♂️", 'nombre': "Sahumerios Saphirus", 'prioridad': 14.5
     },
 
+    # Estándar (Prioridades 1+)
     'touch_dispositivo': {'pattern': lambda p: "DISPOSITIVO" in p and "TOUCH" in p, 'emoji': "🖱️", 'nombre': "Dispositivos Touch", 'prioridad': 1},
     'touch_repuesto': {'pattern': lambda p: ("REPUESTO" in p and "TOUCH" in p) or "GR/13" in p, 'emoji': "🔄", 'nombre': "Repuestos de Touch", 'prioridad': 2},
     'perfume_mini': {'pattern': lambda p: "MINI MILANO" in p, 'emoji': "🧴", 'nombre': "Perfume Mini Milano", 'prioridad': 3},
@@ -181,12 +192,22 @@ def detectar_categoria(producto):
             return f"{config['emoji']} {config['nombre']}"
     return "📦 Varios"
 
-# --- REGLAS DE LIMPIEZA CORREGIDAS ---
+# --- REGLAS DE LIMPIEZA ---
 REGLAS_LIMPIEZA = {
     'general': [(r"\s*[-–]?\s*SAPHIRUS.*$", ""), (r"\s*[-–]?\s*AMBAR.*$", ""), (r"^[-–]\s*", ""), (r"\s*[-–]$", "")],
-    # CORRECCIÓN AQUÍ: Regex más flexible para borrar "TARJETA AROMATICA [SAPHIRUS]" y espacios extra
+    # Reglas Disney: Cubren "AROMATIZADOR TEXTIL - DISNEY -" y "AROMATIZADOR TEXTIL DISNEY -"
+    'textil_disney': [
+        (r"^AROMATIZADOR\s+TEXTIL(\s+DISNEY)?\s*[-–]?\s*DISNEY\s*[-–]?\s*", ""),
+        (r"^AROMATIZADOR\s+TEXTIL\s+DISNEY\s*[-–]?\s*", "")
+    ],
+    'difusor_disney': [
+        (r"^DIFUSOR\s+AROMATICO(\s+DISNEY)?\s*[-–]?\s*DISNEY\s*[-–]?\s*", ""),
+        (r"^DIFUSOR\s+AROMATICO\s+DISNEY\s*[-–]?\s*", "")
+    ],
     'tarjeta': [(r"^TARJETA\s+AROMATICA(\s+SAPHIRUS)?\s*", "")],
     'sahumerio_saphirus': [(r"^SAHUMERIO SAPHIRUS\s*[-–]?\s*", "")],
+    
+    # Resto
     'shiny_general': [(r"^LIMPIAVIDRIOS.*", "LIMPIAVIDRIOS"), (r"^DESENGRASANTE.*", "DESENGRASANTE"), (r"^LUSTRAMUEBLES?.*", "LUSTRAMUEBLE")],
     'limpiadores': [(r"^LIMPIADOR\s+LIQUIDO\s+MULTISUPERFICIES\s*250\s*ML\s*[-–]?\s*SHINY\s*[-–]?\s*", ""), (r"\s*\d{4,6}$", "")],
     'premium': [(r"^DIFUSOR PREMIUM\s*[-–]?\s*", ""), (r"\s*[-–]?\s*AROMATICO.*$", "")],
@@ -216,7 +237,11 @@ def aplicar_reglas(texto, reglas):
 def limpiar_producto_por_categoria(row):
     cat = row["Categoria"]
     nom = row["Producto"]
+    
+    # Mapeo actualizado
     mapeo = {
+        "Textiles Disney": 'textil_disney',
+        "Difusores Disney": 'difusor_disney',
         "Tarjetas Aromáticas": 'tarjeta', 
         "Sahumerios Saphirus": 'sahumerio_saphirus', 
         "Shiny General": 'shiny_general', "Limpiadores": 'limpiadores', "Difusores Premium": 'premium', "Aceites": 'aceites', 
@@ -362,8 +387,22 @@ def enviar_whatsapp(mensaje, creds):
         st.error(f"Error: {e}")
         return False
 
+# --- PARSEADORES SIMPLES PARA COMPARADOR ---
+def parsear_lista_para_comparar(texto):
+    items = {}
+    if not texto: return items
+    for line in texto.split('\n'):
+        if " x " in line:
+            try:
+                parts = line.split(" x ", 1)
+                qty = float(parts[0].strip())
+                prod = parts[1].strip().upper() 
+                items[prod] = items.get(prod, 0) + qty
+            except: continue
+    return items
+
 # --- UI PRINCIPAL ---
-tab1, tab2, tab3, tab4 = st.tabs(["📄 Procesar PDF", "➕ Sumar Listas", "✅ Auditoría", "📊 Totales"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📄 Procesar PDF", "➕ Sumar Listas", "✅ Auditoría", "📊 Totales", "🆚 Comparador"])
 
 # TAB 1: PDF
 with tab1:
@@ -382,9 +421,10 @@ with tab1:
 # TAB 2: SUMA
 with tab2:
     st.info("Pega dos listas para sumarlas.")
-    c1, c2 = st.columns(2)
-    l1 = c1.text_area("Lista 1")
-    l2 = c2.text_area("Lista 2")
+    # MODIFICADO: Sin columnas para evitar error CSS en móvil
+    l1 = st.text_area("Lista 1", height=200, placeholder="1 x UVA...", key="sum_l1")
+    l2 = st.text_area("Lista 2", height=200, placeholder="1 x UVA...", key="sum_l2")
+    
     if st.button("Unificar"):
         def parse_simple(txt):
             d = {}
@@ -543,8 +583,6 @@ with tab4:
             
             if totales:
                 st.subheader("📋 Detalle por Categoría")
-                
-                # --- LÓGICA DE COPIADO ---
                 texto_reporte = ""
                 for cat in sorted(totales.keys()):
                     q = totales[cat]
@@ -552,12 +590,62 @@ with tab4:
                     texto_reporte += f"{cat}: {q_fmt}\n\n"
                 
                 st.code(texto_reporte, language='text')
-                # -------------------------------
-                    
             else:
                 st.warning("⚠️ No se encontraron productos válidos.")
         else:
             st.warning("⚠️ Pega una lista primero.")
 
+# TAB 5: COMPARADOR
+with tab5:
+    st.header("🆚 Comparador de Listas")
+    
+    # MODIFICADO: Sin columnas para evitar error CSS en móvil
+    txt_a = st.text_area("Lista A (Referencia)", height=200, placeholder="1 x UVA...", key="comp_a")
+    txt_b = st.text_area("Lista B (A Comparar)", height=200, placeholder="1 x UVA...", key="comp_b")
+        
+    if st.button("🔍 Comparar", type="primary", use_container_width=True):
+        if txt_a and txt_b:
+            dict_a = parsear_lista_para_comparar(txt_a)
+            dict_b = parsear_lista_para_comparar(txt_b)
+            
+            faltantes = {}
+            sobrantes = {}
+            diferencias = {}
+            
+            for prod, cant_a in dict_a.items():
+                if prod not in dict_b:
+                    faltantes[prod] = cant_a
+                elif dict_b[prod] != cant_a:
+                    diferencias[prod] = (cant_a, dict_b[prod])
+            
+            for prod, cant_b in dict_b.items():
+                if prod not in dict_a:
+                    sobrantes[prod] = cant_b
+            
+            c1, c2, c3 = st.tabs(["❌ Faltantes", "➕ Sobrantes", "⚠️ Diferencias"])
+            
+            with c1:
+                if faltantes:
+                    st.error(f"Faltan {len(faltantes)} productos")
+                    for p, c in faltantes.items():
+                        st.markdown(f"- {c} x {p}")
+                else: st.success("No hay faltantes")
+                
+            with c2:
+                if sobrantes:
+                    st.warning(f"Sobran {len(sobrantes)} productos")
+                    for p, c in sobrantes.items():
+                        st.markdown(f"- {c} x {p}")
+                else: st.success("No hay sobrantes")
+                
+            with c3:
+                if diferencias:
+                    st.info(f"Diferencias en {len(diferencias)} productos")
+                    for p, (es, re) in diferencias.items():
+                        st.markdown(f"**{p}**: Esperado {es} ➡️ Llegó {re}")
+                else: st.success("Cantidades coinciden")
+        else:
+            st.warning("Pega ambas listas para comparar")
+
 st.markdown("---")
-st.caption("Repositor Saphirus 37.0")
+st.caption("Repositor Saphirus 39.0")
