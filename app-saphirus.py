@@ -15,19 +15,16 @@ st.set_page_config(page_title="Repositor Saphirus", page_icon="✨", layout="cen
 st.title("✨ Repositor Saphirus 41.0")
 
 # --- ESTILOS CSS OPTIMIZADOS PARA 5 COLUMNAS EN MÓVIL ---
+# --- ESTILOS CSS (SOLUCIÓN DEFINITIVA MÓVIL) ---
 st.markdown("""
 <style>
-    /* 1. Ajustes generales */
+    /* 1. Ajustes generales de espaciado */
     .block-container {
         padding-top: 1rem !important;
         padding-bottom: 5rem !important;
     }
-    div[data-testid="stExpander"] div[data-testid="stVerticalBlock"] {
-        gap: 0rem !important;
-        padding: 0rem !important;
-    }
     
-    /* 2. Estilo de Botones */
+    /* 2. Estilo de Botones (Iconos grandes) */
     .stButton button {
         background-color: transparent !important;
         border: none !important;
@@ -37,7 +34,7 @@ st.markdown("""
         margin: 0px !important;
         height: 50px !important; 
         min-height: 50px !important;
-        font-size: 18px !important; /* Un poco más chico para encajar */
+        font-size: 22px !important;
         line-height: 1 !important;
     }
     .stButton button:hover {
@@ -45,16 +42,17 @@ st.markdown("""
         border-radius: 50%;
     }
 
-    /* 3. LÓGICA DE GRID PARA AUDITORÍA (MÓVIL) */
+    /* 3. LÓGICA DE GRID PARA MÓVILES (Basada en Expanders) */
     @media (max-width: 640px) {
         
-        /* DETECTAR FILA DE PRODUCTO (5 COLUMNAS) 
-           Texto | Edit | SinStock | Repuesto | Pendiente 
-           Ancho botones: 35px (Total 140px para botones, resto para texto)
+        /* REGLA DE ORO: Solo aplicamos el formato de fila especial a los bloques horizontales
+           que estén DENTRO de un Expander (las carpetas de categorías).
+           Esto evita romper las pestañas de "Sumar" o "Comparar".
         */
-        div[data-testid="stHorizontalBlock"]:has(div[data-testid="column"]:nth-child(5)) {
+        div[data-testid="stExpander"] div[data-testid="stHorizontalBlock"] {
             display: grid !important;
-            grid-template-columns: 1fr 35px 35px 35px 35px !important; 
+            /* Estructura: Texto (lo que sobre) | Edit(35) | Stock(35) | Rep(35) | Pend(35) */
+            grid-template-columns: 1fr 35px 35px 35px 35px !important;
             gap: 0px !important;
             align-items: center !important;
             border-bottom: 1px solid #f0f0f0;
@@ -63,8 +61,8 @@ st.markdown("""
             min-height: 50px !important;
         }
 
-        /* Estilos de las columnas dentro de la fila de producto */
-        div[data-testid="stHorizontalBlock"]:has(div[data-testid="column"]:nth-child(5)) > div[data-testid="column"] {
+        /* Forzar a las columnas dentro del expander a no tener ancho mínimo */
+        div[data-testid="stExpander"] div[data-testid="column"] {
             width: auto !important;
             min-width: 0px !important;
             flex: unset !important;
@@ -75,30 +73,29 @@ st.markdown("""
             height: 100% !important;
         }
 
-        /* Columna 1 (Texto): Alineación izquierda y corte con ... */
-        div[data-testid="stHorizontalBlock"]:has(div[data-testid="column"]:nth-child(5)) > div[data-testid="column"]:first-child {
+        /* Alineación y corte de texto para el Nombre del Producto (Columna 1) */
+        div[data-testid="stExpander"] div[data-testid="column"]:first-child {
             justify-content: flex-start;
             overflow: hidden;
         }
 
-        div[data-testid="stHorizontalBlock"]:has(div[data-testid="column"]:nth-child(5)) > div[data-testid="column"]:first-child p {
-            font-size: 13px !important;
+        div[data-testid="stExpander"] div[data-testid="column"]:first-child p {
+            font-size: 13px !important; 
             margin: 0 !important;
-            white-space: nowrap;
+            white-space: nowrap; /* Obliga a una sola línea */
             overflow: hidden;
-            text-overflow: ellipsis;
+            text-overflow: ellipsis; /* Pone "..." si no entra */
             padding-left: 2px;
-            padding-right: 2px;
+            line-height: 50px !important;
         }
         
-        /* DETECTAR BARRA DE TÍTULO (5 COLUMNAS TAMBIÉN PARA ALINEAR) */
-        /* Si usas la misma estructura de columnas para el título, se alineará igual */
-        
+        /* Ocultar elementos vacíos */
         div[data-testid="column"]:empty {
             display: none !important;
         }
     }
     
+    /* Ajuste menor para escritorio */
     @media (min-width: 641px) {
         div[data-testid="stHorizontalBlock"] {
              border-bottom: 1px solid #f0f0f0;
@@ -666,3 +663,4 @@ with tab5:
 
 st.markdown("---")
 st.caption("Repositor Saphirus 41.0")
+
