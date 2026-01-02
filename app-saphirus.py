@@ -49,15 +49,21 @@ st.markdown("""
            que estén DENTRO de un Expander (las carpetas de categorías).
            Esto evita romper las pestañas de "Sumar" o "Comparar".
         */
+        .st-emotion-cache-3ex273{
+            gap: 0rem !important;
+        }
+        .st-emotion-cache-1anq8dj{
+            padding: 0.25rem 1.25rem !important;
+        }
         div[data-testid="stExpander"] div[data-testid="stHorizontalBlock"] {
             display: grid !important;
             /* Estructura: Texto (lo que sobre) | Edit(35) | Stock(35) | Rep(35) | Pend(35) */
-            grid-template-columns: 1fr 35px 35px 35px 35px !important;
+            grid-template-columns: 1fr 45px 35px 35px 35px !important;
             gap: 0px !important;
             align-items: center !important;
             border-bottom: 1px solid #f0f0f0;
             margin-bottom: 0px !important;
-            padding: 2px 0px !important;
+            padding: 1px 0px !important;
             min-height: 50px !important;
         }
 
@@ -663,4 +669,5 @@ with tab5:
 
 st.markdown("---")
 st.caption("Repositor Saphirus 41.0")
+
 
