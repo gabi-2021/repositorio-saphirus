@@ -512,7 +512,7 @@ with tab3:
                     st.markdown(f"<small style='color:#666; padding-left: 4px; line-height: 50px;'><b>{cat}</b></small>", unsafe_allow_html=True)
                 # cb_blank vacío
                 with cb1:
-                    if st.button("📦📉", key=f"all_ped_{cat}", help="Todos Sin Stock"):
+                    if st.button("📦", key=f"all_ped_{cat}", help="Todos Sin Stock"):
                         actualizar_categoria_completa(cat, 'pedido')
                         st.rerun()
                 with cb2:
@@ -669,5 +669,6 @@ with tab5:
 
 st.markdown("---")
 st.caption("Repositor Saphirus 41.0")
+
 
 
