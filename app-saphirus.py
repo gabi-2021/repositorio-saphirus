@@ -12,12 +12,12 @@ logger = logging.getLogger(__name__)
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Repositor Saphirus", page_icon="✨", layout="centered")
-st.title("✨ Repositor Saphirus 39.0")
+st.title("✨ Repositor Saphirus 40.0")
 
-# --- ESTILOS CSS "NUCLEAR" (EL QUE FUNCIONA SIEMPRE) ---
+# --- ESTILOS CSS ADAPTADOS PARA 4 BOTONES ---
 st.markdown("""
 <style>
-    /* 1. Ajustes de espaciado */
+    /* 1. Ajustes generales */
     .block-container {
         padding-top: 1rem !important;
         padding-bottom: 5rem !important;
@@ -27,7 +27,7 @@ st.markdown("""
         padding: 0rem !important;
     }
     
-    /* 2. Estilo de Botones (Iconos grandes) */
+    /* 2. Estilo de Botones */
     .stButton button {
         background-color: transparent !important;
         border: none !important;
@@ -37,7 +37,7 @@ st.markdown("""
         margin: 0px !important;
         height: 50px !important; 
         min-height: 50px !important;
-        font-size: 22px !important;
+        font-size: 20px !important; /* Un poco más chico para que entre el lápiz */
         line-height: 1 !important;
     }
     .stButton button:hover {
@@ -45,14 +45,14 @@ st.markdown("""
         border-radius: 50%;
     }
 
-    /* 3. GRID LAYOUT FIJO PARA MÓVILES (ESTILO v36) */
+    /* 3. LÓGICA DE GRID PARA AUDITORÍA (5 COLUMNAS: Texto + Edit + 3 Acciones) */
     @media (max-width: 640px) {
-        /* Forzamos a que CUALQUIER fila de columnas se comporte como la grilla de auditoría.
-           Por eso quitamos las columnas en las otras pestañas, para no romperlas. */
-        div[data-testid="stHorizontalBlock"] {
+        
+        /* Solo aplica si detecta 5 columnas (Texto + 4 Botones) */
+        div[data-testid="stHorizontalBlock"]:has(div[data-testid="column"]:nth-child(5)) {
             display: grid !important;
-            /* Texto | Btn | Btn | Btn */
-            grid-template-columns: 1fr 45px 45px 45px !important; 
+            /* Texto | Edit(40) | Btn(40) | Btn(40) | Btn(40) */
+            grid-template-columns: 1fr 40px 40px 40px 40px !important; 
             gap: 0px !important;
             align-items: center !important;
             
@@ -62,8 +62,8 @@ st.markdown("""
             min-height: 50px !important;
         }
 
-        /* Ajuste de celdas */
-        div[data-testid="column"] {
+        /* Estilos de las columnas */
+        div[data-testid="stHorizontalBlock"]:has(div[data-testid="column"]:nth-child(5)) > div[data-testid="column"] {
             width: auto !important;
             min-width: 0px !important;
             flex: unset !important;
@@ -75,20 +75,20 @@ st.markdown("""
         }
 
         /* Texto alineado a la izquierda */
-        div[data-testid="column"]:first-child {
+        div[data-testid="stHorizontalBlock"]:has(div[data-testid="column"]:nth-child(5)) > div[data-testid="column"]:first-child {
             justify-content: flex-start;
             overflow: hidden;
         }
 
-        /* Formato de texto compacto */
-        div[data-testid="column"]:first-child p {
-            font-size: 14px !important; 
+        /* Formato del texto */
+        div[data-testid="stHorizontalBlock"]:has(div[data-testid="column"]:nth-child(5)) > div[data-testid="column"]:first-child p {
+            font-size: 13px !important; /* Un pelín más chico para ganar espacio */
             margin: 0 !important;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            padding-left: 5px;
-            padding-right: 5px;
+            padding-left: 2px;
+            padding-right: 2px;
         }
         
         div[data-testid="column"]:empty {
@@ -96,7 +96,6 @@ st.markdown("""
         }
     }
     
-    /* Escritorio */
     @media (min-width: 641px) {
         div[data-testid="stHorizontalBlock"] {
              border-bottom: 1px solid #f0f0f0;
@@ -135,28 +134,12 @@ def cargar_credenciales():
 
 credentials = cargar_credenciales()
 
-# --- CATEGORIAS (Con Disney) ---
+# --- CATEGORIAS ---
 CATEGORIAS = {
-    # Nuevas Disney (Prioridad Alta 0.X)
-    'textil_disney': {
-        'pattern': lambda p: "TEXTIL" in p and "DISNEY" in p, 
-        'emoji': "🏰", 'nombre': "Textiles Disney", 'prioridad': 0.1
-    },
-    'difusor_disney': {
-        'pattern': lambda p: "DIFUSOR" in p and "DISNEY" in p, 
-        'emoji': "🏰", 'nombre': "Difusores Disney", 'prioridad': 0.2
-    },
-    
-    # Tarjetas
+    'textil_disney': {'pattern': lambda p: "TEXTIL" in p and "DISNEY" in p, 'emoji': "🏰", 'nombre': "Textiles Disney", 'prioridad': 0.1},
+    'difusor_disney': {'pattern': lambda p: "DIFUSOR" in p and "DISNEY" in p, 'emoji': "🏰", 'nombre': "Difusores Disney", 'prioridad': 0.2},
     'tarjeta': {'pattern': lambda p: "TARJETA" in p and "AROMATICA" in p, 'emoji': "💳", 'nombre': "Tarjetas Aromáticas", 'prioridad': 0.5},
-    
-    # Sahumerios
-    'sahumerio_saphirus': {
-        'pattern': lambda p: "SAHUMERIO" in p and "SAPHIRUS" in p and not any(x in p for x in ["AMBAR", "HIMALAYA", "HIERBAS"]), 
-        'emoji': "🧘‍♂️", 'nombre': "Sahumerios Saphirus", 'prioridad': 14.5
-    },
-
-    # Estándar (Prioridades 1+)
+    'sahumerio_saphirus': {'pattern': lambda p: "SAHUMERIO" in p and "SAPHIRUS" in p and not any(x in p for x in ["AMBAR", "HIMALAYA", "HIERBAS"]), 'emoji': "🧘‍♂️", 'nombre': "Sahumerios Saphirus", 'prioridad': 14.5},
     'touch_dispositivo': {'pattern': lambda p: "DISPOSITIVO" in p and "TOUCH" in p, 'emoji': "🖱️", 'nombre': "Dispositivos Touch", 'prioridad': 1},
     'touch_repuesto': {'pattern': lambda p: ("REPUESTO" in p and "TOUCH" in p) or "GR/13" in p, 'emoji': "🔄", 'nombre': "Repuestos de Touch", 'prioridad': 2},
     'perfume_mini': {'pattern': lambda p: "MINI MILANO" in p, 'emoji': "🧴", 'nombre': "Perfume Mini Milano", 'prioridad': 3},
@@ -195,19 +178,10 @@ def detectar_categoria(producto):
 # --- REGLAS DE LIMPIEZA ---
 REGLAS_LIMPIEZA = {
     'general': [(r"\s*[-–]?\s*SAPHIRUS.*$", ""), (r"\s*[-–]?\s*AMBAR.*$", ""), (r"^[-–]\s*", ""), (r"\s*[-–]$", "")],
-    # Reglas Disney: Cubren "AROMATIZADOR TEXTIL - DISNEY -" y "AROMATIZADOR TEXTIL DISNEY -"
-    'textil_disney': [
-        (r"^AROMATIZADOR\s+TEXTIL(\s+DISNEY)?\s*[-–]?\s*DISNEY\s*[-–]?\s*", ""),
-        (r"^AROMATIZADOR\s+TEXTIL\s+DISNEY\s*[-–]?\s*", "")
-    ],
-    'difusor_disney': [
-        (r"^DIFUSOR\s+AROMATICO(\s+DISNEY)?\s*[-–]?\s*DISNEY\s*[-–]?\s*", ""),
-        (r"^DIFUSOR\s+AROMATICO\s+DISNEY\s*[-–]?\s*", "")
-    ],
+    'textil_disney': [(r"^AROMATIZADOR\s+TEXTIL(\s+DISNEY)?\s*[-–]?\s*DISNEY\s*[-–]?\s*", ""), (r"^AROMATIZADOR\s+TEXTIL\s+DISNEY\s*[-–]?\s*", "")],
+    'difusor_disney': [(r"^DIFUSOR\s+AROMATICO(\s+DISNEY)?\s*[-–]?\s*DISNEY\s*[-–]?\s*", ""), (r"^DIFUSOR\s+AROMATICO\s+DISNEY\s*[-–]?\s*", "")],
     'tarjeta': [(r"^TARJETA\s+AROMATICA(\s+SAPHIRUS)?\s*", "")],
     'sahumerio_saphirus': [(r"^SAHUMERIO SAPHIRUS\s*[-–]?\s*", "")],
-    
-    # Resto
     'shiny_general': [(r"^LIMPIAVIDRIOS.*", "LIMPIAVIDRIOS"), (r"^DESENGRASANTE.*", "DESENGRASANTE"), (r"^LUSTRAMUEBLES?.*", "LUSTRAMUEBLE")],
     'limpiadores': [(r"^LIMPIADOR\s+LIQUIDO\s+MULTISUPERFICIES\s*250\s*ML\s*[-–]?\s*SHINY\s*[-–]?\s*", ""), (r"\s*\d{4,6}$", "")],
     'premium': [(r"^DIFUSOR PREMIUM\s*[-–]?\s*", ""), (r"\s*[-–]?\s*AROMATICO.*$", "")],
@@ -238,17 +212,14 @@ def limpiar_producto_por_categoria(row):
     cat = row["Categoria"]
     nom = row["Producto"]
     
-    # Mapeo actualizado
     mapeo = {
-        "Textiles Disney": 'textil_disney',
-        "Difusores Disney": 'difusor_disney',
-        "Tarjetas Aromáticas": 'tarjeta', 
-        "Sahumerios Saphirus": 'sahumerio_saphirus', 
-        "Shiny General": 'shiny_general', "Limpiadores": 'limpiadores', "Difusores Premium": 'premium', "Aceites": 'aceites', 
-        "Sahumerios Ambar": 'sahumerio_ambar', "Repuestos de Touch": 'repuesto_touch', "Dispositivos Touch": 'dispositivo_touch', 
-        "Antihumedad": 'antihumedad', "Perfume": 'perfumes', "Parfum": 'perfumes', "Aparatos": 'aparatos', 
-        "Sahumerios": 'sahumerio_tipo', "Home Spray": 'home_spray', "Textiles Mini": 'textil_mini', "Textiles": 'textil',
-        "Autos": 'autos', "Aerosoles": 'aerosol', "Difusores": 'difusor', "Velas": 'velas',
+        "Textiles Disney": 'textil_disney', "Difusores Disney": 'difusor_disney', "Tarjetas Aromáticas": 'tarjeta', 
+        "Sahumerios Saphirus": 'sahumerio_saphirus', "Shiny General": 'shiny_general', "Limpiadores": 'limpiadores', 
+        "Difusores Premium": 'premium', "Aceites": 'aceites', "Sahumerios Ambar": 'sahumerio_ambar', 
+        "Repuestos de Touch": 'repuesto_touch', "Dispositivos Touch": 'dispositivo_touch', "Antihumedad": 'antihumedad', 
+        "Perfume": 'perfumes', "Parfum": 'perfumes', "Aparatos": 'aparatos', "Sahumerios": 'sahumerio_tipo', 
+        "Home Spray": 'home_spray', "Textiles Mini": 'textil_mini', "Textiles": 'textil', "Autos": 'autos', 
+        "Aerosoles": 'aerosol', "Difusores": 'difusor', "Velas": 'velas',
     }
     
     for key, regla in mapeo.items():
@@ -340,6 +311,12 @@ def actualizar_categoria_completa(categoria, nuevo_estado):
         if item['categoria'] == categoria and item['status'] is None:
             item['status'] = nuevo_estado
 
+def actualizar_cantidad(item_id, nueva_cantidad):
+    for item in st.session_state.audit_data:
+        if item['id'] == item_id:
+            item['cantidad'] = nueva_cantidad
+            break
+
 def generar_listas_finales(data):
     pedido_web = {} 
     reponido = {}
@@ -387,7 +364,7 @@ def enviar_whatsapp(mensaje, creds):
         st.error(f"Error: {e}")
         return False
 
-# --- PARSEADORES SIMPLES PARA COMPARADOR ---
+# --- PARSEADORES COMPARADOR ---
 def parsear_lista_para_comparar(texto):
     items = {}
     if not texto: return items
@@ -421,7 +398,6 @@ with tab1:
 # TAB 2: SUMA
 with tab2:
     st.info("Pega dos listas para sumarlas.")
-    # MODIFICADO: Sin columnas para evitar error CSS en móvil
     l1 = st.text_area("Lista 1", height=200, placeholder="1 x UVA...", key="sum_l1")
     l2 = st.text_area("Lista 2", height=200, placeholder="1 x UVA...", key="sum_l2")
     
@@ -482,7 +458,6 @@ with tab3:
         st.markdown("---")
         
         all_cats = sorted(list(set([x['categoria'] for x in st.session_state.audit_data])))
-        
         cats_pendientes = []
         for c in all_cats:
             if any(x['categoria'] == c and x['status'] is None for x in st.session_state.audit_data):
@@ -493,15 +468,17 @@ with tab3:
 
         for cat in cats_pendientes:
             with st.expander(f"📂 {cat}", expanded=False):
-                # --- BARRA DE ACCIÓN MASIVA (Grid) ---
+                # Barra de Acción Masiva (Ajustada para 5 columnas simulando la estructura de abajo)
                 st.markdown(f"<div style='background-color:#f9f9f9; padding: 5px 0; border-radius:5px; margin-bottom:5px; border-bottom: 1px solid #ddd;'>", unsafe_allow_html=True)
                 
-                cb_info, cb1, cb2, cb3 = st.columns([1, 1, 1, 1]) 
+                # Usamos 5 columnas para alinear
+                cb_info, cb_blank, cb1, cb2, cb3 = st.columns([1, 1, 1, 1, 1]) 
                 
                 with cb_info:
-                    st.markdown(f"<small style='color:#666; padding-left: 4px;'><b>{cat}</b></small>", unsafe_allow_html=True)
+                    st.markdown(f"<small style='color:#666; padding-left: 4px; line-height: 50px;'><b>{cat}</b></small>", unsafe_allow_html=True)
+                # cb_blank se deja vacía para alinear con el botón de editar
                 with cb1:
-                    if st.button("📦", key=f"all_ped_{cat}", help="Todos Sin Stock"):
+                    if st.button("📦📉", key=f"all_ped_{cat}", help="Todos Sin Stock"):
                         actualizar_categoria_completa(cat, 'pedido')
                         st.rerun()
                 with cb2:
@@ -517,18 +494,31 @@ with tab3:
                 items_visibles = [x for x in st.session_state.audit_data if x['categoria'] == cat and x['status'] is None]
                 
                 for item in items_visibles:
-                    c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
+                    # 5 Columnas: Texto | Edit | Stock | Repuesto | Pendiente
+                    c1, c2, c3, c4, c5 = st.columns([1, 1, 1, 1, 1])
+                    
                     with c1:
                         st.markdown(f"<span style='font-weight:500;'>{item['cantidad']} x {item['producto']}</span>", unsafe_allow_html=True)
+                    
+                    # Botón de Edición (Popover)
                     with c2:
+                        with st.popover("✏️"):
+                            st.write(f"Editar: {item['producto']}")
+                            new_qty = st.number_input("Cantidad", value=int(item['cantidad']), min_value=1, key=f"qty_{item['id']}")
+                            if st.button("Guardar", key=f"save_{item['id']}"):
+                                actualizar_cantidad(item['id'], new_qty)
+                                st.rerun()
+                    
+                    # Botones de Acción
+                    with c3:
                         if st.button("📦", key=f"p_{item['id']}"):
                             actualizar_estado(item['id'], 'pedido')
                             st.rerun()
-                    with c3:
+                    with c4:
                         if st.button("✅", key=f"r_{item['id']}"):
                             actualizar_estado(item['id'], 'repuesto')
                             st.rerun()
-                    with c4:
+                    with c5:
                         if st.button("❌", key=f"n_{item['id']}"):
                             actualizar_estado(item['id'], 'pendiente')
                             st.rerun()
@@ -545,7 +535,7 @@ with tab3:
         with ft3:
             st.code(formatear_lista_texto(lpen, "Pendientes"), language='text')
 
-# TAB 4: TOTALES POR CATEGORÍA
+# TAB 4: TOTALES
 with tab4:
     st.header("📊 Calculadora de Totales")
     st.info("Pega tu lista para ver los totales.")
@@ -554,7 +544,7 @@ with tab4:
     
     if st.button("🔢 Calcular Totales", type="primary", use_container_width=True):
         if list_input_totales:
-            totales = {} # {Categoria: Cantidad}
+            totales = {} 
             categoria_actual = None 
             lines = list_input_totales.split('\n')
             
@@ -599,7 +589,6 @@ with tab4:
 with tab5:
     st.header("🆚 Comparador de Listas")
     
-    # MODIFICADO: Sin columnas para evitar error CSS en móvil
     txt_a = st.text_area("Lista A (Referencia)", height=200, placeholder="1 x UVA...", key="comp_a")
     txt_b = st.text_area("Lista B (A Comparar)", height=200, placeholder="1 x UVA...", key="comp_b")
         
@@ -648,4 +637,4 @@ with tab5:
             st.warning("Pega ambas listas para comparar")
 
 st.markdown("---")
-st.caption("Repositor Saphirus 39.0")
+st.caption("Repositor Saphirus 40.0")
