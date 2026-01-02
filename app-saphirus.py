@@ -12,9 +12,9 @@ logger = logging.getLogger(__name__)
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Repositor Saphirus", page_icon="✨", layout="centered")
-st.title("✨ Repositor Saphirus 40.0")
+st.title("✨ Repositor Saphirus 41.0")
 
-# --- ESTILOS CSS ADAPTADOS PARA 4 BOTONES ---
+# --- ESTILOS CSS OPTIMIZADOS PARA 5 COLUMNAS EN MÓVIL ---
 st.markdown("""
 <style>
     /* 1. Ajustes generales */
@@ -37,7 +37,7 @@ st.markdown("""
         margin: 0px !important;
         height: 50px !important; 
         min-height: 50px !important;
-        font-size: 20px !important; /* Un poco más chico para que entre el lápiz */
+        font-size: 18px !important; /* Un poco más chico para encajar */
         line-height: 1 !important;
     }
     .stButton button:hover {
@@ -45,24 +45,25 @@ st.markdown("""
         border-radius: 50%;
     }
 
-    /* 3. LÓGICA DE GRID PARA AUDITORÍA (5 COLUMNAS: Texto + Edit + 3 Acciones) */
+    /* 3. LÓGICA DE GRID PARA AUDITORÍA (MÓVIL) */
     @media (max-width: 640px) {
         
-        /* Solo aplica si detecta 5 columnas (Texto + 4 Botones) */
+        /* DETECTAR FILA DE PRODUCTO (5 COLUMNAS) 
+           Texto | Edit | SinStock | Repuesto | Pendiente 
+           Ancho botones: 35px (Total 140px para botones, resto para texto)
+        */
         div[data-testid="stHorizontalBlock"]:has(div[data-testid="column"]:nth-child(5)) {
             display: grid !important;
-            /* Texto | Edit(40) | Btn(40) | Btn(40) | Btn(40) */
-            grid-template-columns: 1fr 40px 40px 40px 40px !important; 
+            grid-template-columns: 1fr 35px 35px 35px 35px !important; 
             gap: 0px !important;
             align-items: center !important;
-            
             border-bottom: 1px solid #f0f0f0;
             margin-bottom: 0px !important;
             padding: 2px 0px !important;
             min-height: 50px !important;
         }
 
-        /* Estilos de las columnas */
+        /* Estilos de las columnas dentro de la fila de producto */
         div[data-testid="stHorizontalBlock"]:has(div[data-testid="column"]:nth-child(5)) > div[data-testid="column"] {
             width: auto !important;
             min-width: 0px !important;
@@ -74,15 +75,14 @@ st.markdown("""
             height: 100% !important;
         }
 
-        /* Texto alineado a la izquierda */
+        /* Columna 1 (Texto): Alineación izquierda y corte con ... */
         div[data-testid="stHorizontalBlock"]:has(div[data-testid="column"]:nth-child(5)) > div[data-testid="column"]:first-child {
             justify-content: flex-start;
             overflow: hidden;
         }
 
-        /* Formato del texto */
         div[data-testid="stHorizontalBlock"]:has(div[data-testid="column"]:nth-child(5)) > div[data-testid="column"]:first-child p {
-            font-size: 13px !important; /* Un pelín más chico para ganar espacio */
+            font-size: 13px !important;
             margin: 0 !important;
             white-space: nowrap;
             overflow: hidden;
@@ -90,6 +90,9 @@ st.markdown("""
             padding-left: 2px;
             padding-right: 2px;
         }
+        
+        /* DETECTAR BARRA DE TÍTULO (5 COLUMNAS TAMBIÉN PARA ALINEAR) */
+        /* Si usas la misma estructura de columnas para el título, se alineará igual */
         
         div[data-testid="column"]:empty {
             display: none !important;
@@ -134,12 +137,25 @@ def cargar_credenciales():
 
 credentials = cargar_credenciales()
 
-# --- CATEGORIAS ---
+# --- CATEGORIAS (Con Disney Actualizado) ---
 CATEGORIAS = {
-    'textil_disney': {'pattern': lambda p: "TEXTIL" in p and "DISNEY" in p, 'emoji': "🏰", 'nombre': "Textiles Disney", 'prioridad': 0.1},
-    'difusor_disney': {'pattern': lambda p: "DIFUSOR" in p and "DISNEY" in p, 'emoji': "🏰", 'nombre': "Difusores Disney", 'prioridad': 0.2},
+    # Prioridad Alta para Disney (0.X) para que gane a los genéricos
+    'textil_disney': {
+        'pattern': lambda p: "TEXTIL" in p and "DISNEY" in p, 
+        'emoji': "", # Sin emoji en el nombre según pedido
+        'nombre': "TEXTILES DISNEY", # Nombre exacto pedido: == TEXTILES DISNEY ==
+        'prioridad': 0.1
+    },
+    'difusor_disney': {
+        'pattern': lambda p: "DIFUSOR" in p and "DISNEY" in p, 
+        'emoji': "", 
+        'nombre': "DIFUSORES DISNEY", 
+        'prioridad': 0.2
+    },
     'tarjeta': {'pattern': lambda p: "TARJETA" in p and "AROMATICA" in p, 'emoji': "💳", 'nombre': "Tarjetas Aromáticas", 'prioridad': 0.5},
     'sahumerio_saphirus': {'pattern': lambda p: "SAHUMERIO" in p and "SAPHIRUS" in p and not any(x in p for x in ["AMBAR", "HIMALAYA", "HIERBAS"]), 'emoji': "🧘‍♂️", 'nombre': "Sahumerios Saphirus", 'prioridad': 14.5},
+    
+    # Resto de categorías
     'touch_dispositivo': {'pattern': lambda p: "DISPOSITIVO" in p and "TOUCH" in p, 'emoji': "🖱️", 'nombre': "Dispositivos Touch", 'prioridad': 1},
     'touch_repuesto': {'pattern': lambda p: ("REPUESTO" in p and "TOUCH" in p) or "GR/13" in p, 'emoji': "🔄", 'nombre': "Repuestos de Touch", 'prioridad': 2},
     'perfume_mini': {'pattern': lambda p: "MINI MILANO" in p, 'emoji': "🧴", 'nombre': "Perfume Mini Milano", 'prioridad': 3},
@@ -172,16 +188,27 @@ def detectar_categoria(producto):
     p = producto.upper()
     for key, config in sorted(CATEGORIAS.items(), key=lambda x: x[1]['prioridad']):
         if config['pattern'](p):
-            return f"{config['emoji']} {config['nombre']}"
+            # Formato de nombre: "EMOJI NOMBRE" o solo "NOMBRE" si no hay emoji
+            prefix = f"{config['emoji']} " if config['emoji'] else ""
+            return f"{prefix}{config['nombre']}"
     return "📦 Varios"
 
 # --- REGLAS DE LIMPIEZA ---
 REGLAS_LIMPIEZA = {
     'general': [(r"\s*[-–]?\s*SAPHIRUS.*$", ""), (r"\s*[-–]?\s*AMBAR.*$", ""), (r"^[-–]\s*", ""), (r"\s*[-–]$", "")],
-    'textil_disney': [(r"^AROMATIZADOR\s+TEXTIL(\s+DISNEY)?\s*[-–]?\s*DISNEY\s*[-–]?\s*", ""), (r"^AROMATIZADOR\s+TEXTIL\s+DISNEY\s*[-–]?\s*", "")],
-    'difusor_disney': [(r"^DIFUSOR\s+AROMATICO(\s+DISNEY)?\s*[-–]?\s*DISNEY\s*[-–]?\s*", ""), (r"^DIFUSOR\s+AROMATICO\s+DISNEY\s*[-–]?\s*", "")],
+    # Reglas Disney Específicas (Soporta con y sin guion extra, y limpia "MARVEL")
+    'textil_disney': [
+        (r"^AROMATIZADOR\s+TEXTIL(\s+DISNEY)?\s*[-–]?\s*DISNEY\s*[-–]?\s*(MARVEL\s*[-–]?\s*)?", ""),
+        (r"^AROMATIZADOR\s+TEXTIL\s*[-–]?\s*(MARVEL\s*[-–]?\s*)?", "") # Fallback
+    ],
+    'difusor_disney': [
+        (r"^DIFUSOR\s+AROMATICO(\s+DISNEY)?\s*[-–]?\s*DISNEY\s*[-–]?\s*(MARVEL\s*[-–]?\s*)?", ""),
+        (r"^DIFUSOR\s+AROMATICO\s*[-–]?\s*(MARVEL\s*[-–]?\s*)?", "") # Fallback
+    ],
     'tarjeta': [(r"^TARJETA\s+AROMATICA(\s+SAPHIRUS)?\s*", "")],
     'sahumerio_saphirus': [(r"^SAHUMERIO SAPHIRUS\s*[-–]?\s*", "")],
+    
+    # Resto
     'shiny_general': [(r"^LIMPIAVIDRIOS.*", "LIMPIAVIDRIOS"), (r"^DESENGRASANTE.*", "DESENGRASANTE"), (r"^LUSTRAMUEBLES?.*", "LUSTRAMUEBLE")],
     'limpiadores': [(r"^LIMPIADOR\s+LIQUIDO\s+MULTISUPERFICIES\s*250\s*ML\s*[-–]?\s*SHINY\s*[-–]?\s*", ""), (r"\s*\d{4,6}$", "")],
     'premium': [(r"^DIFUSOR PREMIUM\s*[-–]?\s*", ""), (r"\s*[-–]?\s*AROMATICO.*$", "")],
@@ -213,15 +240,18 @@ def limpiar_producto_por_categoria(row):
     nom = row["Producto"]
     
     mapeo = {
-        "Textiles Disney": 'textil_disney', "Difusores Disney": 'difusor_disney', "Tarjetas Aromáticas": 'tarjeta', 
-        "Sahumerios Saphirus": 'sahumerio_saphirus', "Shiny General": 'shiny_general', "Limpiadores": 'limpiadores', 
-        "Difusores Premium": 'premium', "Aceites": 'aceites', "Sahumerios Ambar": 'sahumerio_ambar', 
-        "Repuestos de Touch": 'repuesto_touch', "Dispositivos Touch": 'dispositivo_touch', "Antihumedad": 'antihumedad', 
-        "Perfume": 'perfumes', "Parfum": 'perfumes', "Aparatos": 'aparatos', "Sahumerios": 'sahumerio_tipo', 
-        "Home Spray": 'home_spray', "Textiles Mini": 'textil_mini', "Textiles": 'textil', "Autos": 'autos', 
-        "Aerosoles": 'aerosol', "Difusores": 'difusor', "Velas": 'velas',
+        "TEXTILES DISNEY": 'textil_disney', 
+        "DIFUSORES DISNEY": 'difusor_disney', 
+        "Tarjetas Aromáticas": 'tarjeta', 
+        "Sahumerios Saphirus": 'sahumerio_saphirus', 
+        "Shiny General": 'shiny_general', "Limpiadores": 'limpiadores', "Difusores Premium": 'premium', "Aceites": 'aceites', 
+        "Sahumerios Ambar": 'sahumerio_ambar', "Repuestos de Touch": 'repuesto_touch', "Dispositivos Touch": 'dispositivo_touch', 
+        "Antihumedad": 'antihumedad', "Perfume": 'perfumes', "Parfum": 'perfumes', "Aparatos": 'aparatos', 
+        "Sahumerios": 'sahumerio_tipo', "Home Spray": 'home_spray', "Textiles Mini": 'textil_mini', "Textiles": 'textil',
+        "Autos": 'autos', "Aerosoles": 'aerosol', "Difusores": 'difusor', "Velas": 'velas',
     }
     
+    # Buscar por coincidencia parcial en el nombre de la categoría
     for key, regla in mapeo.items():
         if key in cat:
             if regla == 'shiny_general': return aplicar_reglas(nom, REGLAS_LIMPIEZA['shiny_general'])
@@ -231,7 +261,9 @@ def limpiar_producto_por_categoria(row):
                  return res
             
             resultado = aplicar_reglas(nom, REGLAS_LIMPIEZA.get(regla, []))
+            # Aplicar limpieza general al final
             resultado = aplicar_reglas(resultado, REGLAS_LIMPIEZA['general'])
+            
             if "Touch" in cat and "REPUESTO NEGRO" in resultado: resultado = resultado.replace("REPUESTO NEGRO", "NEGRO + REPUESTO")
             return resultado if len(resultado) >= 2 else nom
             
@@ -468,15 +500,14 @@ with tab3:
 
         for cat in cats_pendientes:
             with st.expander(f"📂 {cat}", expanded=False):
-                # Barra de Acción Masiva (Ajustada para 5 columnas simulando la estructura de abajo)
+                # Barra de Acción Masiva
                 st.markdown(f"<div style='background-color:#f9f9f9; padding: 5px 0; border-radius:5px; margin-bottom:5px; border-bottom: 1px solid #ddd;'>", unsafe_allow_html=True)
                 
-                # Usamos 5 columnas para alinear
                 cb_info, cb_blank, cb1, cb2, cb3 = st.columns([1, 1, 1, 1, 1]) 
                 
                 with cb_info:
                     st.markdown(f"<small style='color:#666; padding-left: 4px; line-height: 50px;'><b>{cat}</b></small>", unsafe_allow_html=True)
-                # cb_blank se deja vacía para alinear con el botón de editar
+                # cb_blank vacío
                 with cb1:
                     if st.button("📦📉", key=f"all_ped_{cat}", help="Todos Sin Stock"):
                         actualizar_categoria_completa(cat, 'pedido')
@@ -494,13 +525,11 @@ with tab3:
                 items_visibles = [x for x in st.session_state.audit_data if x['categoria'] == cat and x['status'] is None]
                 
                 for item in items_visibles:
-                    # 5 Columnas: Texto | Edit | Stock | Repuesto | Pendiente
                     c1, c2, c3, c4, c5 = st.columns([1, 1, 1, 1, 1])
                     
                     with c1:
                         st.markdown(f"<span style='font-weight:500;'>{item['cantidad']} x {item['producto']}</span>", unsafe_allow_html=True)
                     
-                    # Botón de Edición (Popover)
                     with c2:
                         with st.popover("✏️"):
                             st.write(f"Editar: {item['producto']}")
@@ -509,7 +538,6 @@ with tab3:
                                 actualizar_cantidad(item['id'], new_qty)
                                 st.rerun()
                     
-                    # Botones de Acción
                     with c3:
                         if st.button("📦", key=f"p_{item['id']}"):
                             actualizar_estado(item['id'], 'pedido')
@@ -637,4 +665,4 @@ with tab5:
             st.warning("Pega ambas listas para comparar")
 
 st.markdown("---")
-st.caption("Repositor Saphirus 40.0")
+st.caption("Repositor Saphirus 41.0")
