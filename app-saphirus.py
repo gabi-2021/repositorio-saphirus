@@ -431,9 +431,9 @@ with tab3:
                             "Cantidad": st.column_config.NumberColumn("Cant", min_value=0, width="small"),
                             "Producto": st.column_config.TextColumn("Producto"),
                             "Categoría": None,
-                            
+                            "id": None
                         },
-                        hide_index=True,
+                        hide_index=False,
                         use_container_width=True,
                         num_rows="dynamic", # <--- ESTO PERMITE BORRAR FILAS
                         key=safe_key
@@ -504,4 +504,5 @@ with tab5:
              for k,v in dif.items(): st.write(f"**{k}**: {v[0]} -> {v[1]}")
 
 st.caption("Modo Offline Seguro - v46")
+
 
