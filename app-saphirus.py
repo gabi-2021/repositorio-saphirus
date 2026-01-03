@@ -402,6 +402,7 @@ with tab3:
                 
                 cats_visibles += 1
                 df_cat = df_full[df_full['Categoría'] == cat].copy()
+                df_cat.reset_index(drop=True, inplace=True)
                 safe_key = f"ed_{re.sub(r'[^a-zA-Z0-9]', '', cat)}"
                 
                 with st.expander(f"📂 {cat} ({len(df_cat)})", expanded=False):
@@ -505,5 +506,3 @@ with tab5:
              for k,v in dif.items(): st.write(f"**{k}**: {v[0]} -> {v[1]}")
 
 st.caption("Modo Offline Seguro - v46")
-
-
