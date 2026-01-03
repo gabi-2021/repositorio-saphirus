@@ -6,25 +6,23 @@ from twilio.rest import Client
 import logging
 import uuid
 
-# Configurar logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
 # --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="Repositor Saphirus V43", page_icon="⚡", layout="wide")
-st.title("⚡ Repositor Saphirus 43.0 (Categorías)")
+st.set_page_config(page_title="Repositor V44", page_icon="⚡", layout="wide")
+st.title("⚡ Repositor V44 (Compacto)")
 
-# --- ESTILOS CSS ---
+# --- ESTILOS CSS (Compactar botones masivos) ---
 st.markdown("""
 <style>
     .block-container {
         padding-top: 1rem !important;
         padding-bottom: 5rem !important;
     }
-    /* Estilo para los expanders */
-    .streamlit-expanderHeader {
-        background-color: #f0f2f6;
-        border-radius: 5px;
+    /* Estilo para botones pequeños dentro de los expanders */
+    div[data-testid="column"] button {
+        height: auto !important;
+        padding: 0.25rem 0.5rem !important;
+        font-size: 0.8rem !important;
+        min-height: 0px !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -49,7 +47,7 @@ def cargar_credenciales():
 
 credentials = cargar_credenciales()
 
-# --- OPTIMIZACIÓN: REGEX PRE-COMPILADOS ---
+# --- REGEX PRE-COMPILADOS ---
 PATRONES = {
     'general': [re.compile(p, re.IGNORECASE) for p in [r"\s*[-–]?\s*SAPHIRUS.*$", r"\s*[-–]?\s*AMBAR.*$", r"^[-–]\s*", r"\s*[-–]$"]],
     'textil_disney': [re.compile(p, re.IGNORECASE) for p in [r"^AROMATIZADOR\s+TEXTIL(\s+DISNEY)?\s*[-–]?\s*DISNEY\s*[-–]?\s*(MARVEL\s*[-–]?\s*)?", r"^AROMATIZADOR\s+TEXTIL\s*[-–]?\s*(MARVEL\s*[-–]?\s*)?"]],
@@ -189,7 +187,6 @@ def procesar_pdf(archivo):
         df = pd.DataFrame(datos)
         return limpiar_dataframe(df)
     except Exception as e:
-        logger.error(f"Error en procesar_pdf: {e}")
         return None
 
 def preparar_datos_auditoria(texto_lista):
@@ -212,7 +209,7 @@ def preparar_datos_auditoria(texto_lista):
                     "Categoría": categoria_actual,
                     "Producto": prod,
                     "Cantidad": cant,
-                    "Estado": "Pendiente"
+                    "Estado": "pdte." # Abreviatura por defecto
                 })
             except: continue
     return items
@@ -221,12 +218,15 @@ def generar_listas_finales(data):
     pedido_web = {} 
     reponido = {}
     pendiente = {}
-    mapa_estados = {"Pedido": "pedido", "Repuesto": "repuesto", "Pendiente": "pendiente"}
+    
+    # Nuevo mapeo con abreviaturas
+    mapa_estados = {"ped.": "pedido", "rep.": "repuesto", "pdte.": "pendiente"}
     
     for item in data:
         cat = item['Categoría']
         linea = f"{item['Cantidad']} x {item['Producto']}"
         status_normalizado = mapa_estados.get(item['Estado'], "pendiente")
+        
         if status_normalizado == 'pedido':
             if cat not in pedido_web: pedido_web[cat] = []
             pedido_web[cat].append(linea)
@@ -258,7 +258,7 @@ def generar_mensaje_df(df):
 
 def enviar_whatsapp(mensaje, creds):
     if not all([creds['SID'], creds['TOK'], creds['FROM'], creds['TO']]):
-        st.error("Faltan credenciales o no hay internet.")
+        st.error("Faltan credenciales o internet.")
         return False
     try:
         Client(creds['SID'], creds['TOK']).messages.create(body=mensaje, from_=creds['FROM'], to=creds['TO'])
@@ -267,14 +267,16 @@ def enviar_whatsapp(mensaje, creds):
         st.error(f"Error envío: {e}")
         return False
 
-# --- LOGICA PARA ACTUALIZAR ESTADO DESDE MÚLTIPLES TABLAS ---
+# --- FUNCIÓN MASIVA ---
+def actualizar_categoria_masiva(cat_target, nuevo_estado):
+    for item in st.session_state.audit_data:
+        if item['Categoría'] == cat_target:
+            item['Estado'] = nuevo_estado
+    st.rerun()
+
 def actualizar_estado_desde_editor(df_editado):
-    # Convertir DF editado a lista de dicts
     cambios = df_editado.to_dict('records')
-    # Crear un mapa rápido para buscar por ID
     mapa_cambios = {item['id']: item for item in cambios}
-    
-    # Actualizar la lista maestra
     for item in st.session_state.audit_data:
         if item['id'] in mapa_cambios:
             nuevo_dato = mapa_cambios[item['id']]
@@ -329,9 +331,9 @@ with tab2:
                 txt_fin += f"{q_fmt} x {p}\n"
         st.code(txt_fin)
 
-# TAB 3: AUDITORÍA POR CATEGORÍAS (MODIFICADO)
+# TAB 3: AUDITORÍA (COMPACTA Y MASIVA)
 with tab3:
-    st.header("🕵️ Auditoría por Categorías")
+    st.header("🕵️ Auditoría")
     
     if not st.session_state.audit_started:
         input_audit = st.text_area("Pega la lista aquí:", height=150)
@@ -349,58 +351,51 @@ with tab3:
                 st.rerun()
         
         if st.session_state.audit_data:
-            # 1. Obtener todas las categorías únicas
             df_full = pd.DataFrame(st.session_state.audit_data)
             categorias = sorted(df_full['Categoría'].unique())
             
-            # 2. Generar un Expander y una Tabla por cada categoría
-            cambios_detectados = False
-            
             for cat in categorias:
-                # Filtrar datos solo de esta categoría
                 df_cat = df_full[df_full['Categoría'] == cat].copy()
+                safe_key = f"ed_{re.sub(r'[^a-zA-Z0-9]', '', cat)}"
                 
-                # Crear Key única para evitar error de duplicados
-                # Limpiamos el nombre para que sea seguro
-                safe_key = f"editor_{re.sub(r'[^a-zA-Z0-9]', '', cat)}"
-                
-                with st.expander(f"📂 {cat} ({len(df_cat)} items)", expanded=False):
+                with st.expander(f"📂 {cat} ({len(df_cat)})", expanded=False):
+                    # BOTONES DE ACCIÓN MASIVA
+                    mc1, mc2, mc3 = st.columns([1, 1, 1])
+                    if mc1.button("Todo Ped.", key=f"bp_{safe_key}"):
+                        actualizar_categoria_masiva(cat, "ped.")
+                    if mc2.button("Todo Rep.", key=f"br_{safe_key}"):
+                        actualizar_categoria_masiva(cat, "rep.")
+                    if mc3.button("Reset", key=f"breset_{safe_key}"):
+                        actualizar_categoria_masiva(cat, "pdte.")
+                    
+                    # TABLA COMPACTA
                     edited_df_cat = st.data_editor(
                         df_cat,
                         column_config={
                             "Estado": st.column_config.SelectboxColumn(
-                                "Estado",
-                                options=["Pendiente", "Pedido", "Repuesto"],
+                                "Est",
+                                options=["pdte.", "ped.", "rep."],
                                 required=True,
-                                width="small"
+                                width="small" # Ancho mínimo
                             ),
                             "Cantidad": st.column_config.NumberColumn("Cant", min_value=0, width="small"),
                             "Producto": st.column_config.TextColumn("Producto", disabled=True),
-                            "Categoría": None, # Ocultamos columna categoría porque ya estamos en su sección
+                            "Categoría": None,
                             "id": None
                         },
                         hide_index=True,
                         use_container_width=True,
                         num_rows="fixed",
-                        key=safe_key # <--- CLAVE ÚNICA IMPORTANTE
+                        key=safe_key
                     )
                     
-                    # Detectar cambios comparando con la versión original de esta categoría
-                    # (Esto es un chequeo rápido, la lógica real es actualizar siempre que el usuario toque algo)
-                    # En Streamlit data_editor, si cambia devuelve el nuevo DF, si no, el original.
-                    
-                    # Actualizamos el estado global INMEDIATAMENTE con los datos de esta tabla
                     if not df_cat.equals(edited_df_cat):
                         actualizar_estado_desde_editor(edited_df_cat)
-                        cambios_detectados = True
-
-            if cambios_detectados:
-                st.rerun()
+                        st.rerun()
 
         st.divider()
-        st.subheader("📊 Resultados Finales")
         lp, lr, lpen = generar_listas_finales(st.session_state.audit_data)
-        ft1, ft2, ft3 = st.tabs(["📉 Pedido Web", "✅ Repuesto", "❌ Pendientes"])
+        ft1, ft2, ft3 = st.tabs(["📉 Pedido", "✅ Repuesto", "❌ Pendientes"])
         with ft1: st.code(formatear_lista_texto(lp, "Pedido Web"))
         with ft2: st.code(formatear_lista_texto(lr, "Repuesto Hoy"))
         with ft3: st.code(formatear_lista_texto(lpen, "Pendientes"))
@@ -449,4 +444,4 @@ with tab5:
         with t3:
              for k,v in dif.items(): st.write(f"**{k}**: {v[0]} -> {v[1]}")
 
-st.caption("Modo Offline por Categorías - v43")
+st.caption("Modo Offline Compacto - v44")
