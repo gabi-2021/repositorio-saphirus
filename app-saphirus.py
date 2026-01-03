@@ -7,22 +7,27 @@ import logging
 import uuid
 
 # --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="Repositor V44", page_icon="⚡", layout="wide")
-st.title("⚡ Repositor V44 (Compacto)")
+st.set_page_config(page_title="Repositor V45", page_icon="⚡", layout="wide")
+st.title("⚡ Repositor V45 (Edición Total)")
 
-# --- ESTILOS CSS (Compactar botones masivos) ---
+# --- ESTILOS CSS ---
 st.markdown("""
 <style>
     .block-container {
         padding-top: 1rem !important;
         padding-bottom: 5rem !important;
     }
-    /* Estilo para botones pequeños dentro de los expanders */
+    /* Botones compactos */
     div[data-testid="column"] button {
         height: auto !important;
         padding: 0.25rem 0.5rem !important;
         font-size: 0.8rem !important;
         min-height: 0px !important;
+    }
+    /* Color rojo para botón de eliminar */
+    div[data-testid="column"] button[kind="secondary"] {
+        border-color: #ffcccb;
+        color: #d9534f;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -267,21 +272,41 @@ def enviar_whatsapp(mensaje, creds):
         st.error(f"Error envío: {e}")
         return False
 
-# --- FUNCIÓN MASIVA ---
+# --- LÓGICA DE EDICIÓN AVANZADA (Borrar, Añadir) ---
+def actualizar_datos_categoria(df_nuevo, categoria):
+    # 1. Convertir DF editado a diccionarios
+    nuevos_items = df_nuevo.to_dict('records')
+    
+    # 2. Separar datos: Conservar todo lo que NO es de esta categoría
+    otros_items = [x for x in st.session_state.audit_data if x['Categoría'] != categoria]
+    
+    # 3. Procesar los nuevos datos de ESTA categoría
+    items_procesados = []
+    for item in nuevos_items:
+        # Si agregaron fila nueva, generar ID
+        if not item.get('id') or pd.isna(item.get('id')):
+            item['id'] = str(uuid.uuid4())
+        
+        # Asegurar consistencia
+        item['Categoría'] = categoria
+        if not item.get('Producto'): item['Producto'] = "Nuevo Item"
+        if not item.get('Cantidad'): item['Cantidad'] = 1.0
+        if not item.get('Estado'): item['Estado'] = "pdte."
+            
+        items_procesados.append(item)
+    
+    # 4. Reconstruir estado global
+    st.session_state.audit_data = otros_items + items_procesados
+
+def eliminar_categoria_completa(cat_target):
+    st.session_state.audit_data = [x for x in st.session_state.audit_data if x['Categoría'] != cat_target]
+    st.rerun()
+
 def actualizar_categoria_masiva(cat_target, nuevo_estado):
     for item in st.session_state.audit_data:
         if item['Categoría'] == cat_target:
             item['Estado'] = nuevo_estado
     st.rerun()
-
-def actualizar_estado_desde_editor(df_editado):
-    cambios = df_editado.to_dict('records')
-    mapa_cambios = {item['id']: item for item in cambios}
-    for item in st.session_state.audit_data:
-        if item['id'] in mapa_cambios:
-            nuevo_dato = mapa_cambios[item['id']]
-            item['Cantidad'] = nuevo_dato['Cantidad']
-            item['Estado'] = nuevo_dato['Estado']
 
 # --- UI PRINCIPAL ---
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["📄 Procesar", "➕ Sumar", "✅ Auditoría", "📊 Totales", "🆚 Comparar"])
@@ -331,7 +356,7 @@ with tab2:
                 txt_fin += f"{q_fmt} x {p}\n"
         st.code(txt_fin)
 
-# TAB 3: AUDITORÍA (COMPACTA Y MASIVA)
+# TAB 3: AUDITORÍA
 with tab3:
     st.header("🕵️ Auditoría")
     
@@ -359,16 +384,20 @@ with tab3:
                 safe_key = f"ed_{re.sub(r'[^a-zA-Z0-9]', '', cat)}"
                 
                 with st.expander(f"📂 {cat} ({len(df_cat)})", expanded=False):
-                    # BOTONES DE ACCIÓN MASIVA
-                    mc1, mc2, mc3 = st.columns([1, 1, 1])
+                    # BARRA DE HERRAMIENTAS
+                    mc1, mc2, mc3, mc4 = st.columns([1, 1, 1, 1])
                     if mc1.button("Todo Ped.", key=f"bp_{safe_key}"):
                         actualizar_categoria_masiva(cat, "ped.")
                     if mc2.button("Todo Rep.", key=f"br_{safe_key}"):
                         actualizar_categoria_masiva(cat, "rep.")
-                    if mc3.button("Reset", key=f"breset_{safe_key}"):
+                    if mc3.button("Reset", key=f"brst_{safe_key}"):
                         actualizar_categoria_masiva(cat, "pdte.")
                     
-                    # TABLA COMPACTA
+                    # BOTÓN DE ELIMINAR CATEGORÍA
+                    if mc4.button("🗑️ Elim", key=f"del_{safe_key}", help="Borrar toda la categoría"):
+                        eliminar_categoria_completa(cat)
+                    
+                    # TABLA EDITABLE (DINÁMICA: Permite borrar filas)
                     edited_df_cat = st.data_editor(
                         df_cat,
                         column_config={
@@ -376,21 +405,22 @@ with tab3:
                                 "Est",
                                 options=["pdte.", "ped.", "rep."],
                                 required=True,
-                                width="small" # Ancho mínimo
+                                width="small"
                             ),
                             "Cantidad": st.column_config.NumberColumn("Cant", min_value=0, width="small"),
-                            "Producto": st.column_config.TextColumn("Producto", disabled=True),
+                            "Producto": st.column_config.TextColumn("Producto"),
                             "Categoría": None,
                             "id": None
                         },
                         hide_index=True,
                         use_container_width=True,
-                        num_rows="fixed",
+                        num_rows="dynamic", # <--- ESTO PERMITE BORRAR FILAS
                         key=safe_key
                     )
                     
+                    # Si la tabla cambió (filas borradas o editadas), actualizamos el estado global
                     if not df_cat.equals(edited_df_cat):
-                        actualizar_estado_desde_editor(edited_df_cat)
+                        actualizar_datos_categoria(edited_df_cat, cat)
                         st.rerun()
 
         st.divider()
@@ -444,4 +474,4 @@ with tab5:
         with t3:
              for k,v in dif.items(): st.write(f"**{k}**: {v[0]} -> {v[1]}")
 
-st.caption("Modo Offline Compacto - v44")
+st.caption("Modo Offline Total - v45")
