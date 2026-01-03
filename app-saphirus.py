@@ -10,104 +10,20 @@ import uuid
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# --- CONFIGURACIÓN ---
-st.set_page_config(page_title="Repositor Saphirus", page_icon="✨", layout="centered")
-st.title("✨ Repositor Saphirus 42.0")
+# --- CONFIGURACIÓN DE PÁGINA ---
+st.set_page_config(page_title="Repositor Saphirus V42", page_icon="⚡", layout="wide")
+st.title("⚡ Repositor Saphirus 42.0 (Turbo)")
 
-# --- ESTILOS CSS OPTIMIZADOS PARA 5 COLUMNAS EN MÓVIL ---
-# --- ESTILOS CSS (SOLUCIÓN DEFINITIVA MÓVIL) ---
+# --- ESTILOS CSS (Mantiene interfaz limpia en móvil) ---
 st.markdown("""
 <style>
-    /* 1. Ajustes generales de espaciado */
     .block-container {
         padding-top: 1rem !important;
         padding-bottom: 5rem !important;
     }
-    
-    /* 2. Estilo de Botones (Iconos grandes) */
-    .stButton button {
-        background-color: transparent !important;
-        border: none !important;
-        box-shadow: none !important;
-        color: inherit !important;
-        padding: 0px !important;
-        margin: 0px !important;
-        height: 50px !important; 
-        min-height: 50px !important;
-        font-size: 22px !important;
-        line-height: 1 !important;
-    }
-    .stButton button:hover {
-        background-color: rgba(0,0,0,0.05) !important;
-        border-radius: 50%;
-    }
-
-    /* 3. LÓGICA DE GRID PARA MÓVILES (Basada en Expanders) */
-    @media (max-width: 640px) {
-        
-        /* REGLA DE ORO: Solo aplicamos el formato de fila especial a los bloques horizontales
-           que estén DENTRO de un Expander (las carpetas de categorías).
-           Esto evita romper las pestañas de "Sumar" o "Comparar".
-        */
-        .st-emotion-cache-3ex273{
-            gap: 0rem !important;
-        }
-        .st-emotion-cache-1anq8dj{
-            padding: 0.25rem 1.25rem !important;
-        }
-        div[data-testid="stExpander"] div[data-testid="stHorizontalBlock"] {
-            display: grid !important;
-            /* Estructura: Texto (lo que sobre) | Edit(35) | Stock(35) | Rep(35) | Pend(35) */
-            grid-template-columns: 1fr 45px 35px 35px 35px !important;
-            gap: 0px !important;
-            align-items: center !important;
-            border-bottom: 1px solid #f0f0f0;
-            margin-bottom: 0px !important;
-            padding: 1px 0px !important;
-            min-height: 50px !important;
-        }
-
-        /* Forzar a las columnas dentro del expander a no tener ancho mínimo */
-        div[data-testid="stExpander"] div[data-testid="column"] {
-            width: auto !important;
-            min-width: 0px !important;
-            flex: unset !important;
-            padding: 0 !important;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 100% !important;
-        }
-
-        /* Alineación y corte de texto para el Nombre del Producto (Columna 1) */
-        div[data-testid="stExpander"] div[data-testid="column"]:first-child {
-            justify-content: flex-start;
-            overflow: hidden;
-        }
-
-        div[data-testid="stExpander"] div[data-testid="column"]:first-child p {
-            font-size: 13px !important; 
-            margin: 0 !important;
-            white-space: nowrap; /* Obliga a una sola línea */
-            overflow: hidden;
-            text-overflow: ellipsis; /* Pone "..." si no entra */
-            padding-left: 2px;
-            line-height: 50px !important;
-        }
-        
-        /* Ocultar elementos vacíos */
-        div[data-testid="column"]:empty {
-            display: none !important;
-        }
-    }
-    
-    /* Ajuste menor para escritorio */
-    @media (min-width: 641px) {
-        div[data-testid="stHorizontalBlock"] {
-             border-bottom: 1px solid #f0f0f0;
-             padding-bottom: 5px;
-             margin-bottom: 5px;
-        }
+    /* Ajuste para que la tabla ocupe buen espacio en móvil */
+    div[data-testid="stDataFrameResizable"] {
+        width: 100%;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -120,45 +36,53 @@ if 'audit_started' not in st.session_state:
 
 # --- CREDENCIALES ---
 def cargar_credenciales():
-    with st.sidebar:
-        st.header("🔐 Twilio")
-        try:
-            credentials = {
-                'SID': st.secrets["TWILIO_SID"],
-                'TOK': st.secrets["TWILIO_TOKEN"],
-                'FROM': st.secrets["TWILIO_FROM"],
-                'TO': st.secrets["TWILIO_TO"]
-            }
-            return credentials
-        except Exception:
-            return {
-                'SID': st.text_input("SID", type="password"),
-                'TOK': st.text_input("Token", type="password"),
-                'FROM': st.text_input("From"),
-                'TO': st.text_input("To")
-            }
+    # Intenta cargar de secrets, si falla usa inputs vacíos para no romper la app offline
+    try:
+        return {
+            'SID': st.secrets["TWILIO_SID"],
+            'TOK': st.secrets["TWILIO_TOKEN"],
+            'FROM': st.secrets["TWILIO_FROM"],
+            'TO': st.secrets["TWILIO_TO"]
+        }
+    except:
+        return {'SID': '', 'TOK': '', 'FROM': '', 'TO': ''}
 
 credentials = cargar_credenciales()
 
-# --- CATEGORIAS (Con Disney Actualizado) ---
+# --- OPTIMIZACIÓN: REGEX PRE-COMPILADOS ---
+# Compilamos los patrones una sola vez al inicio para ganar velocidad
+PATRONES = {
+    'general': [re.compile(p, re.IGNORECASE) for p in [r"\s*[-–]?\s*SAPHIRUS.*$", r"\s*[-–]?\s*AMBAR.*$", r"^[-–]\s*", r"\s*[-–]$"]],
+    'textil_disney': [re.compile(p, re.IGNORECASE) for p in [r"^AROMATIZADOR\s+TEXTIL(\s+DISNEY)?\s*[-–]?\s*DISNEY\s*[-–]?\s*(MARVEL\s*[-–]?\s*)?", r"^AROMATIZADOR\s+TEXTIL\s*[-–]?\s*(MARVEL\s*[-–]?\s*)?"]],
+    'difusor_disney': [re.compile(p, re.IGNORECASE) for p in [r"^DIFUSOR\s+AROMATICO(\s+DISNEY)?\s*[-–]?\s*DISNEY\s*[-–]?\s*(MARVEL\s*[-–]?\s*)?", r"^DIFUSOR\s+AROMATICO\s*[-–]?\s*(MARVEL\s*[-–]?\s*)?"]],
+    'tarjeta': [re.compile(r"^TARJETA\s+AROMATICA(\s+SAPHIRUS)?\s*", re.IGNORECASE)],
+    'sahumerio_saphirus': [re.compile(r"^SAHUMERIO SAPHIRUS\s*[-–]?\s*", re.IGNORECASE)],
+    'shiny_general': [(re.compile(r"^LIMPIAVIDRIOS.*", re.IGNORECASE), "LIMPIAVIDRIOS"), (re.compile(r"^DESENGRASANTE.*", re.IGNORECASE), "DESENGRASANTE"), (re.compile(r"^LUSTRAMUEBLES?.*", re.IGNORECASE), "LUSTRAMUEBLE")],
+    'limpiadores': [re.compile(p, re.IGNORECASE) for p in [r"^LIMPIADOR\s+LIQUIDO\s+MULTISUPERFICIES\s*250\s*ML\s*[-–]?\s*SHINY\s*[-–]?\s*", r"\s*\d{4,6}$"]],
+    'premium': [re.compile(p, re.IGNORECASE) for p in [r"^DIFUSOR PREMIUM\s*[-–]?\s*", r"\s*[-–]?\s*AROMATICO.*$"]],
+    'home_spray': [re.compile(p, re.IGNORECASE) for p in [r"^HOME SPRAY\s*[-–]?\s*", r"\s*[-–]?\s*AROMATIZANTE\s+TEXTIL.*$", r"\s*500\s*ML.*$"]],
+    'repuesto_touch': [re.compile(p, re.IGNORECASE) for p in [r"(\d+\s*)?GR.*?CM3\s*[-–]?\s*", r"^REPUESTO TOUCH\s*[-–]?\s*"]],
+    'aceites': [re.compile(r"^ACEITE\s+ESENCIAL\s*[-–]?\s*", re.IGNORECASE)],
+    'antihumedad': [re.compile(p, re.IGNORECASE) for p in [r"ANTI\s+HUMEDAD", r"SAPHIRUS", r"[-–]\s*\d+$"]],
+    'perfumes': [re.compile(p, re.IGNORECASE) for p in [r"PERFUME MINI MILANO\s*[-–]?\s*", r"SAPHIRUS PARFUM\s*"]],
+    'aparatos': [(re.compile(r".*LATERAL.*", re.IGNORECASE), "LATERAL"), (re.compile(r".*FRONTAL.*", re.IGNORECASE), "FRONTAL"), (re.compile(r".*DIGITAL.*", re.IGNORECASE), "DIGITAL"), (re.compile(r".*NEGRO.*", re.IGNORECASE), "NEGRO"), (re.compile(r".*GRIS.*", re.IGNORECASE), "GRIS"), (re.compile(r".*ROSA.*", re.IGNORECASE), "ROSA"), (re.compile(r".*BEIGE.*", re.IGNORECASE), "BEIGE"), (re.compile(r".*BLANCO.*", re.IGNORECASE), "BLANCO"), (re.compile(r".*HORNILLO.*", re.IGNORECASE), "HORNILLO CHICO"), (re.compile(r"APARATO ANALOGICO DECO", re.IGNORECASE), "ANALOGICO")],
+    'sahumerio_ambar': [re.compile(r"^SAHUMERIO\s*[-–]?\s*AMBAR\s*[-–]?\s*", re.IGNORECASE)],
+    'sahumerio_tipo': [re.compile(p, re.IGNORECASE) for p in [r"^SAHUMERIO HIERBAS\s*[-–]?\s*", r"^SAHUMERIO HIMALAYA\s*[-–]?\s*", r"^SAHUMERIO\s*[-–]?\s*"]],
+    'dispositivo_touch': [re.compile(p, re.IGNORECASE) for p in [r"^DISPOSITIVO TOUCH\s*(\+)?\s*", r"\s*\d{6,}$"]],
+    'textil_mini': [re.compile(r"^AROMATIZADOR TEXTIL MINI 60 ML\s*[-–]?\s*", re.IGNORECASE)],
+    'textil': [re.compile(p, re.IGNORECASE) for p in [r"^AROMATIZADOR TEXTIL 150 ML AMBAR\s*[-–]?\s*", r"^AROMATIZADOR TEXTIL 250 ML\s*[-–]?\s*", r"^AROMATIZADOR TEXTIL MINI 60 ML\s*[-–]?\s*", r"^AROMATIZADOR TEXTIL\s*[-–]?\s*"]],
+    'autos': [re.compile(p, re.IGNORECASE) for p in [r"CARITAS EMOGI X 2", r"RUTA 66", r"AROMATIZANTE AUTO", r"\s*X\s*2.*$"]],
+    'velas': [(re.compile(r"VELAS SAPHIRUS", re.IGNORECASE), "VELAS")],
+    'aerosol': [re.compile(r"^AEROSOL\s*[-–]?\s*", re.IGNORECASE)],
+    'difusor': [re.compile(p, re.IGNORECASE) for p in [r"^DIFUSOR AROMATICO\s*[-–]?\s*", r"^DIFUSOR\s*[-–]?\s*", r"\s*[-–]?\s*VARILLA.*$"]],
+}
+
+# --- CATEGORIAS ---
 CATEGORIAS = {
-    # Prioridad Alta para Disney (0.X) para que gane a los genéricos
-    'textil_disney': {
-        'pattern': lambda p: "TEXTIL" in p and "DISNEY" in p, 
-        'emoji': "", # Sin emoji en el nombre según pedido
-        'nombre': "TEXTILES DISNEY", # Nombre exacto pedido: == TEXTILES DISNEY ==
-        'prioridad': 0.1
-    },
-    'difusor_disney': {
-        'pattern': lambda p: "DIFUSOR" in p and "DISNEY" in p, 
-        'emoji': "", 
-        'nombre': "DIFUSORES DISNEY", 
-        'prioridad': 0.2
-    },
+    'textil_disney': {'pattern': lambda p: "TEXTIL" in p and "DISNEY" in p, 'emoji': "", 'nombre': "TEXTILES DISNEY", 'prioridad': 0.1},
+    'difusor_disney': {'pattern': lambda p: "DIFUSOR" in p and "DISNEY" in p, 'emoji': "", 'nombre': "DIFUSORES DISNEY", 'prioridad': 0.2},
     'tarjeta': {'pattern': lambda p: "TARJETA" in p and "AROMATICA" in p, 'emoji': "💳", 'nombre': "Tarjetas Aromáticas", 'prioridad': 0.5},
     'sahumerio_saphirus': {'pattern': lambda p: "SAHUMERIO" in p and "SAPHIRUS" in p and not any(x in p for x in ["AMBAR", "HIMALAYA", "HIERBAS"]), 'emoji': "🧘‍♂️", 'nombre': "Sahumerios Saphirus", 'prioridad': 14.5},
-    
-    # Resto de categorías
     'touch_dispositivo': {'pattern': lambda p: "DISPOSITIVO" in p and "TOUCH" in p, 'emoji': "🖱️", 'nombre': "Dispositivos Touch", 'prioridad': 1},
     'touch_repuesto': {'pattern': lambda p: ("REPUESTO" in p and "TOUCH" in p) or "GR/13" in p, 'emoji': "🔄", 'nombre': "Repuestos de Touch", 'prioridad': 2},
     'perfume_mini': {'pattern': lambda p: "MINI MILANO" in p, 'emoji': "🧴", 'nombre': "Perfume Mini Milano", 'prioridad': 3},
@@ -191,51 +115,20 @@ def detectar_categoria(producto):
     p = producto.upper()
     for key, config in sorted(CATEGORIAS.items(), key=lambda x: x[1]['prioridad']):
         if config['pattern'](p):
-            # Formato de nombre: "EMOJI NOMBRE" o solo "NOMBRE" si no hay emoji
             prefix = f"{config['emoji']} " if config['emoji'] else ""
             return f"{prefix}{config['nombre']}"
     return "📦 Varios"
 
-# --- REGLAS DE LIMPIEZA ---
-REGLAS_LIMPIEZA = {
-    'general': [(r"\s*[-–]?\s*SAPHIRUS.*$", ""), (r"\s*[-–]?\s*AMBAR.*$", ""), (r"^[-–]\s*", ""), (r"\s*[-–]$", "")],
-    # Reglas Disney Específicas (Soporta con y sin guion extra, y limpia "MARVEL")
-    'textil_disney': [
-        (r"^AROMATIZADOR\s+TEXTIL(\s+DISNEY)?\s*[-–]?\s*DISNEY\s*[-–]?\s*(MARVEL\s*[-–]?\s*)?", ""),
-        (r"^AROMATIZADOR\s+TEXTIL\s*[-–]?\s*(MARVEL\s*[-–]?\s*)?", "") # Fallback
-    ],
-    'difusor_disney': [
-        (r"^DIFUSOR\s+AROMATICO(\s+DISNEY)?\s*[-–]?\s*DISNEY\s*[-–]?\s*(MARVEL\s*[-–]?\s*)?", ""),
-        (r"^DIFUSOR\s+AROMATICO\s*[-–]?\s*(MARVEL\s*[-–]?\s*)?", "") # Fallback
-    ],
-    'tarjeta': [(r"^TARJETA\s+AROMATICA(\s+SAPHIRUS)?\s*", "")],
-    'sahumerio_saphirus': [(r"^SAHUMERIO SAPHIRUS\s*[-–]?\s*", "")],
-    
-    # Resto
-    'shiny_general': [(r"^LIMPIAVIDRIOS.*", "LIMPIAVIDRIOS"), (r"^DESENGRASANTE.*", "DESENGRASANTE"), (r"^LUSTRAMUEBLES?.*", "LUSTRAMUEBLE")],
-    'limpiadores': [(r"^LIMPIADOR\s+LIQUIDO\s+MULTISUPERFICIES\s*250\s*ML\s*[-–]?\s*SHINY\s*[-–]?\s*", ""), (r"\s*\d{4,6}$", "")],
-    'premium': [(r"^DIFUSOR PREMIUM\s*[-–]?\s*", ""), (r"\s*[-–]?\s*AROMATICO.*$", "")],
-    'home_spray': [(r"^HOME SPRAY\s*[-–]?\s*", ""), (r"\s*[-–]?\s*AROMATIZANTE\s+TEXTIL.*$", ""), (r"\s*500\s*ML.*$", "")],
-    'repuesto_touch': [(r"(\d+\s*)?GR.*?CM3\s*[-–]?\s*", ""), (r"^REPUESTO TOUCH\s*[-–]?\s*", "")],
-    'aceites': [(r"^ACEITE\s+ESENCIAL\s*[-–]?\s*", "")],
-    'antihumedad': [(r"ANTI\s+HUMEDAD", ""), (r"SAPHIRUS", ""), (r"[-–]\s*\d+$", "")],
-    'perfumes': [(r"PERFUME MINI MILANO\s*[-–]?\s*", ""), (r"SAPHIRUS PARFUM\s*", "")],
-    'aparatos': [(r".*LATERAL.*", "LATERAL"), (r".*FRONTAL.*", "FRONTAL"), (r".*DIGITAL.*", "DIGITAL"), (r".*NEGRO.*", "NEGRO"), (r".*GRIS.*", "GRIS"), (r".*ROSA.*", "ROSA"), (r".*BEIGE.*", "BEIGE"), (r".*BLANCO.*", "BLANCO"), (r".*HORNILLO.*", "HORNILLO CHICO"), (r"APARATO ANALOGICO DECO", "ANALOGICO")],
-    'sahumerio_ambar': [(r"^SAHUMERIO\s*[-–]?\s*AMBAR\s*[-–]?\s*", "")],
-    'sahumerio_tipo': [(r"^SAHUMERIO HIERBAS\s*[-–]?\s*", ""), (r"^SAHUMERIO HIMALAYA\s*[-–]?\s*", ""), (r"^SAHUMERIO\s*[-–]?\s*", "")],
-    'dispositivo_touch': [(r"^DISPOSITIVO TOUCH\s*(\+)?\s*", ""), (r"\s*\d{6,}$", "")],
-    'textil_mini': [(r"^AROMATIZADOR TEXTIL MINI 60 ML\s*[-–]?\s*", "")],
-    'textil': [(r"^AROMATIZADOR TEXTIL 150 ML AMBAR\s*[-–]?\s*", ""), (r"^AROMATIZADOR TEXTIL 250 ML\s*[-–]?\s*", ""), (r"^AROMATIZADOR TEXTIL MINI 60 ML\s*[-–]?\s*", ""), (r"^AROMATIZADOR TEXTIL\s*[-–]?\s*", "")],
-    'autos': [(r"CARITAS EMOGI X 2", ""), (r"RUTA 66", ""), (r"AROMATIZANTE AUTO", ""), (r"\s*X\s*2.*$", "")],
-    'velas': [(r"VELAS SAPHIRUS", "VELAS")],
-    'aerosol': [(r"^AEROSOL\s*[-–]?\s*", "")],
-    'difusor': [(r"^DIFUSOR AROMATICO\s*[-–]?\s*", ""), (r"^DIFUSOR\s*[-–]?\s*", ""), (r"\s*[-–]?\s*VARILLA.*$", "")],
-}
-
-def aplicar_reglas(texto, reglas):
+def aplicar_reglas_compiladas(texto, reglas):
     resultado = texto.upper()
-    for patron, reemplazo in reglas:
-        resultado = re.sub(patron, reemplazo, resultado, flags=re.IGNORECASE)
+    for regla in reglas:
+        if isinstance(regla, tuple):
+            # Caso de tupla (patrón, reemplazo fijo)
+            patron, reemplazo = regla
+            resultado = patron.sub(reemplazo, resultado)
+        else:
+            # Caso simple solo patrón, reemplazo por vacío
+            resultado = regla.sub("", resultado)
     return re.sub(r"\s+", " ", resultado).strip()
 
 def limpiar_producto_por_categoria(row):
@@ -243,36 +136,32 @@ def limpiar_producto_por_categoria(row):
     nom = row["Producto"]
     
     mapeo = {
-        "TEXTILES DISNEY": 'textil_disney', 
-        "DIFUSORES DISNEY": 'difusor_disney', 
-        "Tarjetas Aromáticas": 'tarjeta', 
-        "Sahumerios Saphirus": 'sahumerio_saphirus', 
-        "Shiny General": 'shiny_general', "Limpiadores": 'limpiadores', "Difusores Premium": 'premium', "Aceites": 'aceites', 
-        "Sahumerios Ambar": 'sahumerio_ambar', "Repuestos de Touch": 'repuesto_touch', "Dispositivos Touch": 'dispositivo_touch', 
-        "Antihumedad": 'antihumedad', "Perfume": 'perfumes', "Parfum": 'perfumes', "Aparatos": 'aparatos', 
-        "Sahumerios": 'sahumerio_tipo', "Home Spray": 'home_spray', "Textiles Mini": 'textil_mini', "Textiles": 'textil',
-        "Autos": 'autos', "Aerosoles": 'aerosol', "Difusores": 'difusor', "Velas": 'velas',
+        "TEXTILES DISNEY": 'textil_disney', "DIFUSORES DISNEY": 'difusor_disney', 
+        "Tarjetas Aromáticas": 'tarjeta', "Sahumerios Saphirus": 'sahumerio_saphirus', 
+        "Shiny General": 'shiny_general', "Limpiadores": 'limpiadores', "Difusores Premium": 'premium', 
+        "Aceites": 'aceites', "Sahumerios Ambar": 'sahumerio_ambar', "Repuestos de Touch": 'repuesto_touch', 
+        "Dispositivos Touch": 'dispositivo_touch', "Antihumedad": 'antihumedad', "Perfume": 'perfumes', 
+        "Parfum": 'perfumes', "Aparatos": 'aparatos', "Sahumerios": 'sahumerio_tipo', "Home Spray": 'home_spray', 
+        "Textiles Mini": 'textil_mini', "Textiles": 'textil', "Autos": 'autos', "Aerosoles": 'aerosol', 
+        "Difusores": 'difusor', "Velas": 'velas',
     }
     
-    # Buscar por coincidencia parcial en el nombre de la categoría
-    for key, regla in mapeo.items():
+    for key, regla_key in mapeo.items():
         if key in cat:
-            if regla == 'shiny_general': return aplicar_reglas(nom, REGLAS_LIMPIEZA['shiny_general'])
-            if regla == 'aparatos':
-                 res = aplicar_reglas(nom, REGLAS_LIMPIEZA['aparatos'])
-                 if res == nom: res = res.replace("APARATO ANALOGICO DECO", "ANALOGICO")
+            if regla_key == 'aparatos':
+                 res = aplicar_reglas_compiladas(nom, PATRONES['aparatos'])
                  return res
             
-            resultado = aplicar_reglas(nom, REGLAS_LIMPIEZA.get(regla, []))
-            # Aplicar limpieza general al final
-            resultado = aplicar_reglas(resultado, REGLAS_LIMPIEZA['general'])
+            resultado = aplicar_reglas_compiladas(nom, PATRONES.get(regla_key, []))
+            resultado = aplicar_reglas_compiladas(resultado, PATRONES['general'])
             
-            if "Touch" in cat and "REPUESTO NEGRO" in resultado: resultado = resultado.replace("REPUESTO NEGRO", "NEGRO + REPUESTO")
+            if "Touch" in cat and "REPUESTO NEGRO" in resultado: 
+                resultado = resultado.replace("REPUESTO NEGRO", "NEGRO + REPUESTO")
             return resultado if len(resultado) >= 2 else nom
             
-    return aplicar_reglas(nom, REGLAS_LIMPIEZA['general'])
+    return aplicar_reglas_compiladas(nom, PATRONES['general'])
 
-# --- PROCESAMIENTO PDF ---
+# --- PROCESAMIENTO PDF CON CACHÉ ---
 def extraer_texto_pdf(archivo):
     try:
         reader = PdfReader(archivo)
@@ -297,6 +186,7 @@ def limpiar_dataframe(df):
     df["Producto"] = df.apply(limpiar_producto_por_categoria, axis=1)
     return df.groupby(["Categoria", "Producto"], as_index=False)["Cantidad"].sum()
 
+# DECORADOR @st.cache_data: Esto es lo que acelera todo
 @st.cache_data
 def procesar_pdf(archivo):
     try:
@@ -327,46 +217,35 @@ def preparar_datos_auditoria(texto_lista):
                 prod = partes[1].strip()
                 cant = float(cant_str) if '.' in cant_str else int(cant_str)
                 items.append({
-                    "id": str(uuid.uuid4()),
-                    "categoria": categoria_actual,
-                    "producto": prod,
-                    "cantidad": cant,
-                    "status": None 
+                    "id": str(uuid.uuid4()), # Se mantiene para lógica interna
+                    "Categoría": categoria_actual, # Nombre amigable para tabla
+                    "Producto": prod,
+                    "Cantidad": cant,
+                    "Estado": "Pendiente" # Default amigable
                 })
             except: continue
     return items
-
-def actualizar_estado(item_id, nuevo_estado):
-    for item in st.session_state.audit_data:
-        if item['id'] == item_id:
-            item['status'] = nuevo_estado
-            break
-
-def actualizar_categoria_completa(categoria, nuevo_estado):
-    for item in st.session_state.audit_data:
-        if item['categoria'] == categoria and item['status'] is None:
-            item['status'] = nuevo_estado
-
-def actualizar_cantidad(item_id, nueva_cantidad):
-    for item in st.session_state.audit_data:
-        if item['id'] == item_id:
-            item['cantidad'] = nueva_cantidad
-            break
 
 def generar_listas_finales(data):
     pedido_web = {} 
     reponido = {}
     pendiente = {}
+    
+    # Mapeo de valores de tabla a claves internas
+    mapa_estados = {"Pedido": "pedido", "Repuesto": "repuesto", "Pendiente": "pendiente"}
+    
     for item in data:
-        cat = item['categoria']
-        linea = f"{item['cantidad']} x {item['producto']}"
-        if item['status'] == 'pedido':
+        cat = item['Categoría']
+        linea = f"{item['Cantidad']} x {item['Producto']}"
+        status_normalizado = mapa_estados.get(item['Estado'], "pendiente")
+        
+        if status_normalizado == 'pedido':
             if cat not in pedido_web: pedido_web[cat] = []
             pedido_web[cat].append(linea)
-        elif item['status'] == 'repuesto':
+        elif status_normalizado == 'repuesto':
             if cat not in reponido: reponido[cat] = []
             reponido[cat].append(linea)
-        elif item['status'] == 'pendiente':
+        elif status_normalizado == 'pendiente':
             if cat not in pendiente: pendiente[cat] = []
             pendiente[cat].append(linea)
     return pedido_web, reponido, pendiente
@@ -391,31 +270,17 @@ def generar_mensaje_df(df):
 
 def enviar_whatsapp(mensaje, creds):
     if not all([creds['SID'], creds['TOK'], creds['FROM'], creds['TO']]):
-        st.error("Faltan credenciales")
+        st.error("Faltan credenciales o no hay internet.")
         return False
     try:
         Client(creds['SID'], creds['TOK']).messages.create(body=mensaje, from_=creds['FROM'], to=creds['TO'])
         return True
     except Exception as e:
-        st.error(f"Error: {e}")
+        st.error(f"Error envío: {e}")
         return False
 
-# --- PARSEADORES COMPARADOR ---
-def parsear_lista_para_comparar(texto):
-    items = {}
-    if not texto: return items
-    for line in texto.split('\n'):
-        if " x " in line:
-            try:
-                parts = line.split(" x ", 1)
-                qty = float(parts[0].strip())
-                prod = parts[1].strip().upper() 
-                items[prod] = items.get(prod, 0) + qty
-            except: continue
-    return items
-
 # --- UI PRINCIPAL ---
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["📄 Procesar PDF", "➕ Sumar Listas", "✅ Auditoría", "📊 Totales", "🆚 Comparador"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📄 Procesar", "➕ Sumar", "✅ Auditoría", "📊 Totales", "🆚 Comparar"])
 
 # TAB 1: PDF
 with tab1:
@@ -425,19 +290,24 @@ with tab1:
         if df_res is not None and not df_res.empty:
             msg = generar_mensaje_df(df_res)
             st.code(msg, language='text')
-            if len(msg) > 1500: st.warning("⚠️ Mensaje muy largo para WhatsApp directo.")
-            else:
-                if st.button("Enviar PDF a WhatsApp"):
-                    if enviar_whatsapp(msg, credentials): st.success("Enviado")
-        else: st.error("No se pudieron extraer datos.")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("Copiar al Portapapeles (Simulado)"):
+                    st.info("Mantén presionado el texto de arriba para copiar.")
+            with col2:
+                # Botón condicional de WhatsApp (solo si hay credenciales)
+                if credentials['SID']:
+                    if st.button("Enviar WhatsApp"):
+                         if enviar_whatsapp(msg, credentials): st.success("Enviado")
+        else: st.error("Error al leer PDF.")
 
 # TAB 2: SUMA
 with tab2:
-    st.info("Pega dos listas para sumarlas.")
-    l1 = st.text_area("Lista 1", height=200, placeholder="1 x UVA...", key="sum_l1")
-    l2 = st.text_area("Lista 2", height=200, placeholder="1 x UVA...", key="sum_l2")
-    
-    if st.button("Unificar"):
+    l1 = st.text_area("Lista 1", height=150, key="sum_l1")
+    l2 = st.text_area("Lista 2", height=150, key="sum_l2")
+    if st.button("Unificar Listas"):
+        # Lógica de suma simplificada
         def parse_simple(txt):
             d = {}
             cat = "General"
@@ -453,6 +323,7 @@ with tab2:
                         d[cat][prod] = d[cat].get(prod, 0) + c
                     except: pass
             return d
+        
         d1 = parse_simple(l1)
         d2 = parse_simple(l2)
         total = d1.copy()
@@ -460,6 +331,7 @@ with tab2:
             if c not in total: total[c] = {}
             for p, qty in prods.items():
                 total[c][p] = total[c].get(p, 0) + qty
+        
         txt_fin = "📋 *LISTA SUMADA*\n"
         for c in sorted(total.keys()):
             txt_fin += f"\n== {c} ==\n"
@@ -467,214 +339,125 @@ with tab2:
                 q = total[c][p]
                 q_fmt = int(q) if q.is_integer() else q
                 txt_fin += f"{q_fmt} x {p}\n"
-        st.code(txt_fin, language='text')
+        st.code(txt_fin)
 
-# TAB 3: AUDITORÍA
+# TAB 3: AUDITORÍA (OPTIMIZADO CON DATA EDITOR)
 with tab3:
-    st.header("🕵️ Auditoría de Reposición")
+    st.header("🕵️ Auditoría Rápida")
     
     if not st.session_state.audit_started:
-        input_audit = st.text_area("Pega la lista generada aquí:", height=200, placeholder="== CATEGORIA ==\n1 x PRODUCTO")
-        if st.button("🚀 Comenzar Auditoría", type="primary"):
+        input_audit = st.text_area("Pega la lista aquí:", height=150)
+        if st.button("🚀 Iniciar", type="primary"):
             if input_audit:
                 st.session_state.audit_data = preparar_datos_auditoria(input_audit)
                 st.session_state.audit_started = True
                 st.rerun()
-            else: st.warning("Pega una lista primero")
     else:
-        if st.button("🔄 Reiniciar Auditoría", type="secondary"):
-            st.session_state.audit_started = False
-            st.session_state.audit_data = []
-            st.rerun()
+        col_act, col_reset = st.columns([3, 1])
+        with col_reset:
+            if st.button("🔄 Reiniciar"):
+                st.session_state.audit_started = False
+                st.session_state.audit_data = []
+                st.rerun()
+        
+        st.info("Edita la tabla abajo. Los cambios se guardan al instante.")
+        
+        if st.session_state.audit_data:
+            # 1. Convertir a DataFrame
+            df_audit = pd.DataFrame(st.session_state.audit_data)
             
-        completed_count = len([x for x in st.session_state.audit_data if x['status']])
-        total_items = len(st.session_state.audit_data)
-        if total_items > 0: st.progress(completed_count / total_items)
-        
-        st.markdown("---")
-        
-        all_cats = sorted(list(set([x['categoria'] for x in st.session_state.audit_data])))
-        cats_pendientes = []
-        for c in all_cats:
-            if any(x['categoria'] == c and x['status'] is None for x in st.session_state.audit_data):
-                cats_pendientes.append(c)
-
-        if not cats_pendientes and total_items > 0:
-             st.success("🎉 ¡Auditoría Completada! Revisa los resultados abajo.")
-
-        for cat in cats_pendientes:
-            with st.expander(f"📂 {cat}", expanded=False):
-                # Barra de Acción Masiva
-                st.markdown(f"<div style='background-color:#f9f9f9; padding: 5px 0; border-radius:5px; margin-bottom:5px; border-bottom: 1px solid #ddd;'>", unsafe_allow_html=True)
-                
-                cb_info, cb_blank, cb1, cb2, cb3 = st.columns([1, 1, 1, 1, 1]) 
-                
-                with cb_info:
-                    st.markdown(f"<small style='color:#666; padding-left: 4px; line-height: 50px;'><b>{cat}</b></small>", unsafe_allow_html=True)
-                # cb_blank vacío
-                with cb1:
-                    if st.button("📦", key=f"all_ped_{cat}", help="Todos Sin Stock"):
-                        actualizar_categoria_completa(cat, 'pedido')
-                        st.rerun()
-                with cb2:
-                    if st.button("✅", key=f"all_rep_{cat}", help="Todos Repuestos"):
-                        actualizar_categoria_completa(cat, 'repuesto')
-                        st.rerun()
-                with cb3:
-                    if st.button("❌", key=f"all_pen_{cat}", help="Todos Pendientes"):
-                        actualizar_categoria_completa(cat, 'pendiente')
-                        st.rerun()
-                st.markdown("</div>", unsafe_allow_html=True)
-                
-                items_visibles = [x for x in st.session_state.audit_data if x['categoria'] == cat and x['status'] is None]
-                # ... dentro de tab3 ...
-                if st.session_state.audit_data:
-                    # 1. Convertimos la lista de dicts a DataFrame para editar rápido
-                    df_audit = pd.DataFrame(st.session_state.audit_data)
-    
-                    # 2. Configuramos el editor para que sea fácil de usar en móvil
-                    edited_df = st.data_editor(
-                    df_audit,
-                    column_config={
-                    "status": st.column_config.SelectboxColumn(
-                    "Estado",
-                    options=["pendiente", "pedido", "repuesto"],
-                    required=True,
-                    width="medium"
+            # 2. MOSTRAR UNA SOLA TABLA (SOLUCIÓN AL ERROR DE KEY DUPLICADA)
+            # Ordenamos para ver primero lo Pendiente
+            df_audit = df_audit.sort_values(by=["Estado", "Categoría"], ascending=[False, True])
+            
+            edited_df = st.data_editor(
+                df_audit,
+                column_config={
+                    "Estado": st.column_config.SelectboxColumn(
+                        "Estado",
+                        options=["Pendiente", "Pedido", "Repuesto"],
+                        required=True,
+                        width="medium"
                     ),
-                    "cantidad": st.column_config.NumberColumn("Cant.", min_value=0, width="small"),
-                    "producto": st.column_config.TextColumn("Producto", disabled=True), # No editar nombre
-                    "categoria": st.column_config.TextColumn("Cat.", disabled=True),
+                    "Cantidad": st.column_config.NumberColumn("Cant", min_value=0, width="small"),
+                    "Producto": st.column_config.TextColumn("Producto", disabled=True),
+                    "Categoría": st.column_config.TextColumn("Cat", disabled=True),
                     "id": None # Ocultar ID
-                    },
-                    hide_index=True,
-                    key="editor_auditoria",
-                    num_rows="fixed" # No dejar agregar filas vacías
-                    )
-
-                    # 3. Botón único para guardar cambios (Evita recargas constantes)
-                    if st.button("💾 Guardar Cambios"):
-                        # Convertimos de vuelta a la lista de dicts que usa tu app
-                        st.session_state.audit_data = edited_df.to_dict('records')
-                        st.success("Actualizado!")
-                        st.rerun()
-
-        st.header("📊 Listas Finales")
+                },
+                hide_index=True,
+                use_container_width=True,
+                num_rows="fixed",
+                key="editor_unico_audit" # Key única y fija
+            )
+            
+            # 3. Guardar estado automáticamente
+            # Detectamos si hubo cambios comparando
+            current_data = edited_df.to_dict('records')
+            if current_data != st.session_state.audit_data:
+                st.session_state.audit_data = current_data
+                # Pequeño truco para forzar actualización de las listas de abajo sin recargar toda la página bruscamente
+                # st.rerun() # Descomentar si se quiere refresh agresivo, pero data_editor suele manejarlo bien
+        
+        st.divider()
+        st.subheader("📊 Resultados en Tiempo Real")
         lp, lr, lpen = generar_listas_finales(st.session_state.audit_data)
         
-        ft1, ft2, ft3 = st.tabs(["📉 Pedido", "✅ Repuesto", "❌ Pendiente"])
-        
-        with ft1:
-            st.code(formatear_lista_texto(lp, "Pedido Web"), language='text')
-        with ft2:
-            st.code(formatear_lista_texto(lr, "Repuesto Hoy"), language='text')
-        with ft3:
-            st.code(formatear_lista_texto(lpen, "Pendientes"), language='text')
+        ft1, ft2, ft3 = st.tabs(["📉 A Pedir (Web)", "✅ Repuesto (Hoy)", "❌ Pendientes"])
+        with ft1: st.code(formatear_lista_texto(lp, "Pedido Web"))
+        with ft2: st.code(formatear_lista_texto(lr, "Repuesto Hoy"))
+        with ft3: st.code(formatear_lista_texto(lpen, "Pendientes"))
 
 # TAB 4: TOTALES
 with tab4:
-    st.header("📊 Calculadora de Totales")
-    st.info("Pega tu lista para ver los totales.")
-    
-    list_input_totales = st.text_area("Pega la lista aquí:", height=300, placeholder="== CATEGORIA ==\n1 x PRODUCTO...")
-    
-    if st.button("🔢 Calcular Totales", type="primary", use_container_width=True):
-        if list_input_totales:
-            totales = {} 
-            categoria_actual = None 
-            lines = list_input_totales.split('\n')
-            
-            for line in lines:
-                line = line.strip()
-                if not line: continue
-                
-                if line.startswith("==") and line.endswith("=="):
-                    categoria_actual = line.replace("==", "").strip()
-                    continue
-                
-                if " x " in line:
-                    try:
-                        parts = line.split(" x ", 1)
-                        qty = float(parts[0].strip())
-                        prod_name = parts[1].strip()
-                        
-                        if categoria_actual:
-                            cat = categoria_actual
-                        else:
-                            cat = detectar_categoria(prod_name)
-                        
-                        totales[cat] = totales.get(cat, 0) + qty
-                    except:
-                        continue
-            
-            if totales:
-                st.subheader("📋 Detalle por Categoría")
-                texto_reporte = ""
-                for cat in sorted(totales.keys()):
-                    q = totales[cat]
-                    q_fmt = int(q) if q.is_integer() else q
-                    texto_reporte += f"{cat}: {q_fmt}\n\n"
-                
-                st.code(texto_reporte, language='text')
-            else:
-                st.warning("⚠️ No se encontraron productos válidos.")
-        else:
-            st.warning("⚠️ Pega una lista primero.")
+    st.header("Totales por Categoría")
+    list_input_totales = st.text_area("Lista para sumar:", height=150, key="tot_input")
+    if st.button("Calcular"):
+        totales = {} 
+        cat = "General"
+        for line in list_input_totales.split('\n'):
+            line = line.strip()
+            if "==" in line: cat = line.replace("==", "").strip()
+            elif " x " in line:
+                try:
+                    p = line.split(" x ", 1)
+                    qty = float(p[0])
+                    totales[cat] = totales.get(cat, 0) + qty
+                except: pass
+        
+        txt = ""
+        for c, q in totales.items():
+            q_fmt = int(q) if q.is_integer() else q
+            txt += f"{c}: {q_fmt}\n"
+        st.code(txt)
 
 # TAB 5: COMPARADOR
 with tab5:
-    st.header("🆚 Comparador de Listas")
+    st.header("Comparador")
+    ca = st.text_area("Lista A", height=150, key="ca")
+    cb = st.text_area("Lista B", height=150, key="cb")
     
-    txt_a = st.text_area("Lista A (Referencia)", height=200, placeholder="1 x UVA...", key="comp_a")
-    txt_b = st.text_area("Lista B (A Comparar)", height=200, placeholder="1 x UVA...", key="comp_b")
+    if st.button("Comparar Listas"):
+        def parse_c(t):
+            d = {}
+            for l in t.split('\n'):
+                if " x " in l:
+                    p = l.split(" x ", 1)
+                    d[p[1].strip().upper()] = float(p[0])
+            return d
         
-    if st.button("🔍 Comparar", type="primary", use_container_width=True):
-        if txt_a and txt_b:
-            dict_a = parsear_lista_para_comparar(txt_a)
-            dict_b = parsear_lista_para_comparar(txt_b)
-            
-            faltantes = {}
-            sobrantes = {}
-            diferencias = {}
-            
-            for prod, cant_a in dict_a.items():
-                if prod not in dict_b:
-                    faltantes[prod] = cant_a
-                elif dict_b[prod] != cant_a:
-                    diferencias[prod] = (cant_a, dict_b[prod])
-            
-            for prod, cant_b in dict_b.items():
-                if prod not in dict_a:
-                    sobrantes[prod] = cant_b
-            
-            c1, c2, c3 = st.tabs(["❌ Faltantes", "➕ Sobrantes", "⚠️ Diferencias"])
-            
-            with c1:
-                if faltantes:
-                    st.error(f"Faltan {len(faltantes)} productos")
-                    for p, c in faltantes.items():
-                        st.markdown(f"- {c} x {p}")
-                else: st.success("No hay faltantes")
-                
-            with c2:
-                if sobrantes:
-                    st.warning(f"Sobran {len(sobrantes)} productos")
-                    for p, c in sobrantes.items():
-                        st.markdown(f"- {c} x {p}")
-                else: st.success("No hay sobrantes")
-                
-            with c3:
-                if diferencias:
-                    st.info(f"Diferencias en {len(diferencias)} productos")
-                    for p, (es, re) in diferencias.items():
-                        st.markdown(f"**{p}**: Esperado {es} ➡️ Llegó {re}")
-                else: st.success("Cantidades coinciden")
-        else:
-            st.warning("Pega ambas listas para comparar")
+        da = parse_c(ca)
+        db = parse_c(cb)
+        
+        falta = {k: v for k, v in da.items() if k not in db}
+        sobra = {k: v for k, v in db.items() if k not in da}
+        dif = {k: (v, db[k]) for k, v in da.items() if k in db and v != db[k]}
+        
+        t1, t2, t3 = st.tabs([f"Faltan ({len(falta)})", f"Sobran ({len(sobra)})", f"Diferentes ({len(dif)})"])
+        with t1:
+             for k,v in falta.items(): st.write(f"- {v} x {k}")
+        with t2:
+             for k,v in sobra.items(): st.write(f"- {v} x {k}")
+        with t3:
+             for k,v in dif.items(): st.write(f"**{k}**: Era {v[0]} -> Es {v[1]}")
 
-st.markdown("---")
-st.caption("Repositor Saphirus 42.0")
-
-
-
-
+st.caption("Modo Offline Optimizado - v42")
