@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Repositor Saphirus", page_icon="✨", layout="centered")
-st.title("✨ Repositor Saphirus 41.0")
+st.title("✨ Repositor Saphirus 42.0")
 
 # --- ESTILOS CSS OPTIMIZADOS PARA 5 COLUMNAS EN MÓVIL ---
 # --- ESTILOS CSS (SOLUCIÓN DEFINITIVA MÓVIL) ---
@@ -297,6 +297,7 @@ def limpiar_dataframe(df):
     df["Producto"] = df.apply(limpiar_producto_por_categoria, axis=1)
     return df.groupby(["Categoria", "Producto"], as_index=False)["Cantidad"].sum()
 
+@st.cache_data
 def procesar_pdf(archivo):
     try:
         texto = extraer_texto_pdf(archivo)
@@ -526,33 +527,37 @@ with tab3:
                 st.markdown("</div>", unsafe_allow_html=True)
                 
                 items_visibles = [x for x in st.session_state.audit_data if x['categoria'] == cat and x['status'] is None]
-                
-                for item in items_visibles:
-                    c1, c2, c3, c4, c5 = st.columns([1, 1, 1, 1, 1])
-                    
-                    with c1:
-                        st.markdown(f"<span style='font-weight:500;'>{item['cantidad']} x {item['producto']}</span>", unsafe_allow_html=True)
-                    
-                    with c2:
-                        with st.popover("✏️"):
-                            st.write(f"Editar: {item['producto']}")
-                            new_qty = st.number_input("Cantidad", value=int(item['cantidad']), min_value=1, key=f"qty_{item['id']}")
-                            if st.button("Guardar", key=f"save_{item['id']}"):
-                                actualizar_cantidad(item['id'], new_qty)
-                                st.rerun()
-                    
-                    with c3:
-                        if st.button("📦", key=f"p_{item['id']}"):
-                            actualizar_estado(item['id'], 'pedido')
-                            st.rerun()
-                    with c4:
-                        if st.button("✅", key=f"r_{item['id']}"):
-                            actualizar_estado(item['id'], 'repuesto')
-                            st.rerun()
-                    with c5:
-                        if st.button("❌", key=f"n_{item['id']}"):
-                            actualizar_estado(item['id'], 'pendiente')
-                            st.rerun()
+                # ... dentro de tab3 ...
+                if st.session_state.audit_data:
+                    # 1. Convertimos la lista de dicts a DataFrame para editar rápido
+                    df_audit = pd.DataFrame(st.session_state.audit_data)
+    
+                    # 2. Configuramos el editor para que sea fácil de usar en móvil
+                    edited_df = st.data_editor(
+                    df_audit,
+                    column_config={
+                    "status": st.column_config.SelectboxColumn(
+                    "Estado",
+                    options=["pendiente", "pedido", "repuesto"],
+                    required=True,
+                    width="medium"
+                    ),
+                    "cantidad": st.column_config.NumberColumn("Cant.", min_value=0, width="small"),
+                    "producto": st.column_config.TextColumn("Producto", disabled=True), # No editar nombre
+                    "categoria": st.column_config.TextColumn("Cat.", disabled=True),
+                    "id": None # Ocultar ID
+                    },
+                    hide_index=True,
+                    key="editor_auditoria",
+                    num_rows="fixed" # No dejar agregar filas vacías
+                    )
+
+                    # 3. Botón único para guardar cambios (Evita recargas constantes)
+                    if st.button("💾 Guardar Cambios"):
+                        # Convertimos de vuelta a la lista de dicts que usa tu app
+                        st.session_state.audit_data = edited_df.to_dict('records')
+                        st.success("Actualizado!")
+                        st.rerun()
 
         st.header("📊 Listas Finales")
         lp, lr, lpen = generar_listas_finales(st.session_state.audit_data)
@@ -668,7 +673,8 @@ with tab5:
             st.warning("Pega ambas listas para comparar")
 
 st.markdown("---")
-st.caption("Repositor Saphirus 41.0")
+st.caption("Repositor Saphirus 42.0")
+
 
 
 
