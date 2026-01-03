@@ -11,19 +11,20 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="Repositor Saphirus V42", page_icon="⚡", layout="wide")
-st.title("⚡ Repositor Saphirus 42.0 (Turbo)")
+st.set_page_config(page_title="Repositor Saphirus V43", page_icon="⚡", layout="wide")
+st.title("⚡ Repositor Saphirus 43.0 (Categorías)")
 
-# --- ESTILOS CSS (Mantiene interfaz limpia en móvil) ---
+# --- ESTILOS CSS ---
 st.markdown("""
 <style>
     .block-container {
         padding-top: 1rem !important;
         padding-bottom: 5rem !important;
     }
-    /* Ajuste para que la tabla ocupe buen espacio en móvil */
-    div[data-testid="stDataFrameResizable"] {
-        width: 100%;
+    /* Estilo para los expanders */
+    .streamlit-expanderHeader {
+        background-color: #f0f2f6;
+        border-radius: 5px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -36,7 +37,6 @@ if 'audit_started' not in st.session_state:
 
 # --- CREDENCIALES ---
 def cargar_credenciales():
-    # Intenta cargar de secrets, si falla usa inputs vacíos para no romper la app offline
     try:
         return {
             'SID': st.secrets["TWILIO_SID"],
@@ -50,7 +50,6 @@ def cargar_credenciales():
 credentials = cargar_credenciales()
 
 # --- OPTIMIZACIÓN: REGEX PRE-COMPILADOS ---
-# Compilamos los patrones una sola vez al inicio para ganar velocidad
 PATRONES = {
     'general': [re.compile(p, re.IGNORECASE) for p in [r"\s*[-–]?\s*SAPHIRUS.*$", r"\s*[-–]?\s*AMBAR.*$", r"^[-–]\s*", r"\s*[-–]$"]],
     'textil_disney': [re.compile(p, re.IGNORECASE) for p in [r"^AROMATIZADOR\s+TEXTIL(\s+DISNEY)?\s*[-–]?\s*DISNEY\s*[-–]?\s*(MARVEL\s*[-–]?\s*)?", r"^AROMATIZADOR\s+TEXTIL\s*[-–]?\s*(MARVEL\s*[-–]?\s*)?"]],
@@ -123,11 +122,9 @@ def aplicar_reglas_compiladas(texto, reglas):
     resultado = texto.upper()
     for regla in reglas:
         if isinstance(regla, tuple):
-            # Caso de tupla (patrón, reemplazo fijo)
             patron, reemplazo = regla
             resultado = patron.sub(reemplazo, resultado)
         else:
-            # Caso simple solo patrón, reemplazo por vacío
             resultado = regla.sub("", resultado)
     return re.sub(r"\s+", " ", resultado).strip()
 
@@ -151,17 +148,13 @@ def limpiar_producto_por_categoria(row):
             if regla_key == 'aparatos':
                  res = aplicar_reglas_compiladas(nom, PATRONES['aparatos'])
                  return res
-            
             resultado = aplicar_reglas_compiladas(nom, PATRONES.get(regla_key, []))
             resultado = aplicar_reglas_compiladas(resultado, PATRONES['general'])
-            
             if "Touch" in cat and "REPUESTO NEGRO" in resultado: 
                 resultado = resultado.replace("REPUESTO NEGRO", "NEGRO + REPUESTO")
             return resultado if len(resultado) >= 2 else nom
-            
     return aplicar_reglas_compiladas(nom, PATRONES['general'])
 
-# --- PROCESAMIENTO PDF CON CACHÉ ---
 def extraer_texto_pdf(archivo):
     try:
         reader = PdfReader(archivo)
@@ -186,7 +179,6 @@ def limpiar_dataframe(df):
     df["Producto"] = df.apply(limpiar_producto_por_categoria, axis=1)
     return df.groupby(["Categoria", "Producto"], as_index=False)["Cantidad"].sum()
 
-# DECORADOR @st.cache_data: Esto es lo que acelera todo
 @st.cache_data
 def procesar_pdf(archivo):
     try:
@@ -200,7 +192,6 @@ def procesar_pdf(archivo):
         logger.error(f"Error en procesar_pdf: {e}")
         return None
 
-# --- FUNCIONES AUDITORIA ---
 def preparar_datos_auditoria(texto_lista):
     items = []
     categoria_actual = "General"
@@ -217,11 +208,11 @@ def preparar_datos_auditoria(texto_lista):
                 prod = partes[1].strip()
                 cant = float(cant_str) if '.' in cant_str else int(cant_str)
                 items.append({
-                    "id": str(uuid.uuid4()), # Se mantiene para lógica interna
-                    "Categoría": categoria_actual, # Nombre amigable para tabla
+                    "id": str(uuid.uuid4()),
+                    "Categoría": categoria_actual,
                     "Producto": prod,
                     "Cantidad": cant,
-                    "Estado": "Pendiente" # Default amigable
+                    "Estado": "Pendiente"
                 })
             except: continue
     return items
@@ -230,15 +221,12 @@ def generar_listas_finales(data):
     pedido_web = {} 
     reponido = {}
     pendiente = {}
-    
-    # Mapeo de valores de tabla a claves internas
     mapa_estados = {"Pedido": "pedido", "Repuesto": "repuesto", "Pendiente": "pendiente"}
     
     for item in data:
         cat = item['Categoría']
         linea = f"{item['Cantidad']} x {item['Producto']}"
         status_normalizado = mapa_estados.get(item['Estado'], "pendiente")
-        
         if status_normalizado == 'pedido':
             if cat not in pedido_web: pedido_web[cat] = []
             pedido_web[cat].append(linea)
@@ -279,10 +267,24 @@ def enviar_whatsapp(mensaje, creds):
         st.error(f"Error envío: {e}")
         return False
 
+# --- LOGICA PARA ACTUALIZAR ESTADO DESDE MÚLTIPLES TABLAS ---
+def actualizar_estado_desde_editor(df_editado):
+    # Convertir DF editado a lista de dicts
+    cambios = df_editado.to_dict('records')
+    # Crear un mapa rápido para buscar por ID
+    mapa_cambios = {item['id']: item for item in cambios}
+    
+    # Actualizar la lista maestra
+    for item in st.session_state.audit_data:
+        if item['id'] in mapa_cambios:
+            nuevo_dato = mapa_cambios[item['id']]
+            item['Cantidad'] = nuevo_dato['Cantidad']
+            item['Estado'] = nuevo_dato['Estado']
+
 # --- UI PRINCIPAL ---
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["📄 Procesar", "➕ Sumar", "✅ Auditoría", "📊 Totales", "🆚 Comparar"])
 
-# TAB 1: PDF
+# TAB 1
 with tab1:
     archivo = st.file_uploader("Subir PDF", type="pdf")
     if archivo:
@@ -290,24 +292,15 @@ with tab1:
         if df_res is not None and not df_res.empty:
             msg = generar_mensaje_df(df_res)
             st.code(msg, language='text')
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("Copiar al Portapapeles (Simulado)"):
-                    st.info("Mantén presionado el texto de arriba para copiar.")
-            with col2:
-                # Botón condicional de WhatsApp (solo si hay credenciales)
-                if credentials['SID']:
-                    if st.button("Enviar WhatsApp"):
-                         if enviar_whatsapp(msg, credentials): st.success("Enviado")
+            if credentials['SID'] and st.button("Enviar WhatsApp"):
+                 if enviar_whatsapp(msg, credentials): st.success("Enviado")
         else: st.error("Error al leer PDF.")
 
-# TAB 2: SUMA
+# TAB 2
 with tab2:
     l1 = st.text_area("Lista 1", height=150, key="sum_l1")
     l2 = st.text_area("Lista 2", height=150, key="sum_l2")
-    if st.button("Unificar Listas"):
-        # Lógica de suma simplificada
+    if st.button("Unificar"):
         def parse_simple(txt):
             d = {}
             cat = "General"
@@ -317,33 +310,28 @@ with tab2:
                 elif " x " in line:
                     p = line.split(" x ", 1)
                     try:
-                        c = float(p[0])
-                        prod = p[1]
+                        c = float(p[0]); prod = p[1]
                         if cat not in d: d[cat] = {}
                         d[cat][prod] = d[cat].get(prod, 0) + c
                     except: pass
             return d
-        
-        d1 = parse_simple(l1)
-        d2 = parse_simple(l2)
+        d1 = parse_simple(l1); d2 = parse_simple(l2)
         total = d1.copy()
         for c, prods in d2.items():
             if c not in total: total[c] = {}
             for p, qty in prods.items():
                 total[c][p] = total[c].get(p, 0) + qty
-        
         txt_fin = "📋 *LISTA SUMADA*\n"
         for c in sorted(total.keys()):
             txt_fin += f"\n== {c} ==\n"
             for p in sorted(total[c].keys()):
-                q = total[c][p]
-                q_fmt = int(q) if q.is_integer() else q
+                q = total[c][p]; q_fmt = int(q) if q.is_integer() else q
                 txt_fin += f"{q_fmt} x {p}\n"
         st.code(txt_fin)
 
-# TAB 3: AUDITORÍA (OPTIMIZADO CON DATA EDITOR)
+# TAB 3: AUDITORÍA POR CATEGORÍAS (MODIFICADO)
 with tab3:
-    st.header("🕵️ Auditoría Rápida")
+    st.header("🕵️ Auditoría por Categorías")
     
     if not st.session_state.audit_started:
         input_audit = st.text_area("Pega la lista aquí:", height=150)
@@ -360,56 +348,66 @@ with tab3:
                 st.session_state.audit_data = []
                 st.rerun()
         
-        st.info("Edita la tabla abajo. Los cambios se guardan al instante.")
-        
         if st.session_state.audit_data:
-            # 1. Convertir a DataFrame
-            df_audit = pd.DataFrame(st.session_state.audit_data)
+            # 1. Obtener todas las categorías únicas
+            df_full = pd.DataFrame(st.session_state.audit_data)
+            categorias = sorted(df_full['Categoría'].unique())
             
-            # 2. MOSTRAR UNA SOLA TABLA (SOLUCIÓN AL ERROR DE KEY DUPLICADA)
-            # Ordenamos para ver primero lo Pendiente
-            df_audit = df_audit.sort_values(by=["Estado", "Categoría"], ascending=[False, True])
+            # 2. Generar un Expander y una Tabla por cada categoría
+            cambios_detectados = False
             
-            edited_df = st.data_editor(
-                df_audit,
-                column_config={
-                    "Estado": st.column_config.SelectboxColumn(
-                        "Estado",
-                        options=["Pendiente", "Pedido", "Repuesto"],
-                        required=True,
-                        width="medium"
-                    ),
-                    "Cantidad": st.column_config.NumberColumn("Cant", min_value=0, width="small"),
-                    "Producto": st.column_config.TextColumn("Producto", disabled=True),
-                    "Categoría": st.column_config.TextColumn("Cat", disabled=True),
-                    "id": None # Ocultar ID
-                },
-                hide_index=True,
-                use_container_width=True,
-                num_rows="fixed",
-                key="editor_unico_audit" # Key única y fija
-            )
-            
-            # 3. Guardar estado automáticamente
-            # Detectamos si hubo cambios comparando
-            current_data = edited_df.to_dict('records')
-            if current_data != st.session_state.audit_data:
-                st.session_state.audit_data = current_data
-                # Pequeño truco para forzar actualización de las listas de abajo sin recargar toda la página bruscamente
-                # st.rerun() # Descomentar si se quiere refresh agresivo, pero data_editor suele manejarlo bien
-        
+            for cat in categorias:
+                # Filtrar datos solo de esta categoría
+                df_cat = df_full[df_full['Categoría'] == cat].copy()
+                
+                # Crear Key única para evitar error de duplicados
+                # Limpiamos el nombre para que sea seguro
+                safe_key = f"editor_{re.sub(r'[^a-zA-Z0-9]', '', cat)}"
+                
+                with st.expander(f"📂 {cat} ({len(df_cat)} items)", expanded=False):
+                    edited_df_cat = st.data_editor(
+                        df_cat,
+                        column_config={
+                            "Estado": st.column_config.SelectboxColumn(
+                                "Estado",
+                                options=["Pendiente", "Pedido", "Repuesto"],
+                                required=True,
+                                width="small"
+                            ),
+                            "Cantidad": st.column_config.NumberColumn("Cant", min_value=0, width="small"),
+                            "Producto": st.column_config.TextColumn("Producto", disabled=True),
+                            "Categoría": None, # Ocultamos columna categoría porque ya estamos en su sección
+                            "id": None
+                        },
+                        hide_index=True,
+                        use_container_width=True,
+                        num_rows="fixed",
+                        key=safe_key # <--- CLAVE ÚNICA IMPORTANTE
+                    )
+                    
+                    # Detectar cambios comparando con la versión original de esta categoría
+                    # (Esto es un chequeo rápido, la lógica real es actualizar siempre que el usuario toque algo)
+                    # En Streamlit data_editor, si cambia devuelve el nuevo DF, si no, el original.
+                    
+                    # Actualizamos el estado global INMEDIATAMENTE con los datos de esta tabla
+                    if not df_cat.equals(edited_df_cat):
+                        actualizar_estado_desde_editor(edited_df_cat)
+                        cambios_detectados = True
+
+            if cambios_detectados:
+                st.rerun()
+
         st.divider()
-        st.subheader("📊 Resultados en Tiempo Real")
+        st.subheader("📊 Resultados Finales")
         lp, lr, lpen = generar_listas_finales(st.session_state.audit_data)
-        
-        ft1, ft2, ft3 = st.tabs(["📉 A Pedir (Web)", "✅ Repuesto (Hoy)", "❌ Pendientes"])
+        ft1, ft2, ft3 = st.tabs(["📉 Pedido Web", "✅ Repuesto", "❌ Pendientes"])
         with ft1: st.code(formatear_lista_texto(lp, "Pedido Web"))
         with ft2: st.code(formatear_lista_texto(lr, "Repuesto Hoy"))
         with ft3: st.code(formatear_lista_texto(lpen, "Pendientes"))
 
-# TAB 4: TOTALES
+# TAB 4
 with tab4:
-    st.header("Totales por Categoría")
+    st.header("Totales")
     list_input_totales = st.text_area("Lista para sumar:", height=150, key="tot_input")
     if st.button("Calcular"):
         totales = {} 
@@ -419,45 +417,36 @@ with tab4:
             if "==" in line: cat = line.replace("==", "").strip()
             elif " x " in line:
                 try:
-                    p = line.split(" x ", 1)
-                    qty = float(p[0])
+                    p = line.split(" x ", 1); qty = float(p[0])
                     totales[cat] = totales.get(cat, 0) + qty
                 except: pass
-        
         txt = ""
         for c, q in totales.items():
             q_fmt = int(q) if q.is_integer() else q
             txt += f"{c}: {q_fmt}\n"
         st.code(txt)
 
-# TAB 5: COMPARADOR
+# TAB 5
 with tab5:
     st.header("Comparador")
     ca = st.text_area("Lista A", height=150, key="ca")
     cb = st.text_area("Lista B", height=150, key="cb")
-    
-    if st.button("Comparar Listas"):
+    if st.button("Comparar"):
         def parse_c(t):
             d = {}
             for l in t.split('\n'):
-                if " x " in l:
-                    p = l.split(" x ", 1)
-                    d[p[1].strip().upper()] = float(p[0])
+                if " x " in l: p = l.split(" x ", 1); d[p[1].strip().upper()] = float(p[0])
             return d
-        
-        da = parse_c(ca)
-        db = parse_c(cb)
-        
+        da = parse_c(ca); db = parse_c(cb)
         falta = {k: v for k, v in da.items() if k not in db}
         sobra = {k: v for k, v in db.items() if k not in da}
         dif = {k: (v, db[k]) for k, v in da.items() if k in db and v != db[k]}
-        
-        t1, t2, t3 = st.tabs([f"Faltan ({len(falta)})", f"Sobran ({len(sobra)})", f"Diferentes ({len(dif)})"])
+        t1, t2, t3 = st.tabs([f"Faltan ({len(falta)})", f"Sobran ({len(sobra)})", f"Dif ({len(dif)})"])
         with t1:
              for k,v in falta.items(): st.write(f"- {v} x {k}")
         with t2:
              for k,v in sobra.items(): st.write(f"- {v} x {k}")
         with t3:
-             for k,v in dif.items(): st.write(f"**{k}**: Era {v[0]} -> Es {v[1]}")
+             for k,v in dif.items(): st.write(f"**{k}**: {v[0]} -> {v[1]}")
 
-st.caption("Modo Offline Optimizado - v42")
+st.caption("Modo Offline por Categorías - v43")
