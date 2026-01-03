@@ -433,7 +433,7 @@ with tab3:
                             "Categoría": None,
                             "id": None
                         },
-                        hide_index=False,
+                        hide_index=True,
                         use_container_width=True,
                         num_rows="dynamic", # <--- ESTO PERMITE BORRAR FILAS
                         key=safe_key
@@ -504,5 +504,3 @@ with tab5:
              for k,v in dif.items(): st.write(f"**{k}**: {v[0]} -> {v[1]}")
 
 st.caption("Modo Offline Seguro - v46")
-
-
