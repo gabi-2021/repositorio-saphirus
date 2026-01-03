@@ -422,7 +422,7 @@ with tab3:
                     edited_df_cat = st.data_editor(
                         df_cat,
                         column_config={
-                            "_index": st.column_config.Column(hidden=True),
+                            "_index": None,
                             "Estado": st.column_config.SelectboxColumn(
                                 "Est",
                                 options=["pdte.", "ped.", "rep."],
@@ -505,4 +505,5 @@ with tab5:
              for k,v in dif.items(): st.write(f"**{k}**: {v[0]} -> {v[1]}")
 
 st.caption("Modo Offline Seguro - v46")
+
 
