@@ -7,8 +7,8 @@ import logging
 import uuid
 
 # --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="Repositor V45", page_icon="⚡", layout="wide")
-st.title("⚡ Repositor V45 (Edición Total)")
+st.set_page_config(page_title="Repositor V46", page_icon="⚡", layout="wide")
+st.title("⚡ Repositor V46 (Modo Seguro)")
 
 # --- ESTILOS CSS ---
 st.markdown("""
@@ -24,10 +24,16 @@ st.markdown("""
         font-size: 0.8rem !important;
         min-height: 0px !important;
     }
-    /* Color rojo para botón de eliminar */
+    /* Estilo botón Finalizar/Ocultar */
     div[data-testid="column"] button[kind="secondary"] {
-        border-color: #ffcccb;
-        color: #d9534f;
+        border-color: #c3e6cb;
+        color: #155724;
+        background-color: #d4edda;
+    }
+    /* Estilo botón Reset Ocultas */
+    .stButton button:contains("Mostrar") {
+        border-color: #bee5eb;
+        color: #0c5460;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -37,6 +43,9 @@ if 'audit_data' not in st.session_state:
     st.session_state.audit_data = [] 
 if 'audit_started' not in st.session_state:
     st.session_state.audit_started = False
+# NUEVO: Lista de categorías ocultas (Archivadas)
+if 'cats_ocultas' not in st.session_state:
+    st.session_state.cats_ocultas = set()
 
 # --- CREDENCIALES ---
 def cargar_credenciales():
@@ -298,8 +307,13 @@ def actualizar_datos_categoria(df_nuevo, categoria):
     # 4. Reconstruir estado global
     st.session_state.audit_data = otros_items + items_procesados
 
-def eliminar_categoria_completa(cat_target):
-    st.session_state.audit_data = [x for x in st.session_state.audit_data if x['Categoría'] != cat_target]
+# NUEVO: Ocultar categoría sin borrar datos
+def ocultar_categoria(cat_target):
+    st.session_state.cats_ocultas.add(cat_target)
+    st.rerun()
+
+def restaurar_todas_categorias():
+    st.session_state.cats_ocultas.clear()
     st.rerun()
 
 def actualizar_categoria_masiva(cat_target, nuevo_estado):
@@ -370,16 +384,23 @@ with tab3:
     else:
         col_act, col_reset = st.columns([3, 1])
         with col_reset:
-            if st.button("🔄 Reiniciar"):
+            if st.button("🔄 Reiniciar Todo"):
                 st.session_state.audit_started = False
                 st.session_state.audit_data = []
+                st.session_state.cats_ocultas.clear()
                 st.rerun()
         
         if st.session_state.audit_data:
             df_full = pd.DataFrame(st.session_state.audit_data)
             categorias = sorted(df_full['Categoría'].unique())
             
+            cats_visibles = 0
             for cat in categorias:
+                # Si está oculta, la saltamos visualmente (pero los datos siguen existiendo)
+                if cat in st.session_state.cats_ocultas:
+                    continue
+                
+                cats_visibles += 1
                 df_cat = df_full[df_full['Categoría'] == cat].copy()
                 safe_key = f"ed_{re.sub(r'[^a-zA-Z0-9]', '', cat)}"
                 
@@ -393,9 +414,9 @@ with tab3:
                     if mc3.button("Reset", key=f"brst_{safe_key}"):
                         actualizar_categoria_masiva(cat, "pdte.")
                     
-                    # BOTÓN DE ELIMINAR CATEGORÍA
-                    if mc4.button("🗑️ Elim", key=f"del_{safe_key}", help="Borrar toda la categoría"):
-                        eliminar_categoria_completa(cat)
+                    # BOTÓN DE FINALIZAR/OCULTAR
+                    if mc4.button("🔒 Listo", key=f"hide_{safe_key}", help="Ocultar esta categoría (Mantiene los datos)"):
+                        ocultar_categoria(cat)
                     
                     # TABLA EDITABLE (DINÁMICA: Permite borrar filas)
                     edited_df_cat = st.data_editor(
@@ -418,10 +439,18 @@ with tab3:
                         key=safe_key
                     )
                     
-                    # Si la tabla cambió (filas borradas o editadas), actualizamos el estado global
                     if not df_cat.equals(edited_df_cat):
                         actualizar_datos_categoria(edited_df_cat, cat)
                         st.rerun()
+            
+            # Si hay categorías ocultas, mostrar botón para recuperarlas
+            if len(st.session_state.cats_ocultas) > 0:
+                st.info(f"Hay {len(st.session_state.cats_ocultas)} categorías finalizadas/ocultas.")
+                if st.button("👁️ Mostrar Categorías Ocultas"):
+                    restaurar_todas_categorias()
+            
+            if cats_visibles == 0 and len(categorias) > 0:
+                st.success("🎉 ¡Todas las categorías han sido revisadas!")
 
         st.divider()
         lp, lr, lpen = generar_listas_finales(st.session_state.audit_data)
@@ -474,4 +503,4 @@ with tab5:
         with t3:
              for k,v in dif.items(): st.write(f"**{k}**: {v[0]} -> {v[1]}")
 
-st.caption("Modo Offline Total - v45")
+st.caption("Modo Offline Seguro - v46")
