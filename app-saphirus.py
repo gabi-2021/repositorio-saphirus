@@ -46,7 +46,8 @@ if 'audit_started' not in st.session_state:
 # NUEVO: Lista de categorías ocultas (Archivadas)
 if 'cats_ocultas' not in st.session_state:
     st.session_state.cats_ocultas = set()
-
+if 'stock_report_log' not in st.session_state:
+    st.session_state.stock_report_log = []
 # --- CREDENCIALES ---
 def cargar_credenciales():
     try:
@@ -323,7 +324,8 @@ def actualizar_categoria_masiva(cat_target, nuevo_estado):
     st.rerun()
 
 # --- UI PRINCIPAL ---
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["📄 Procesar", "➕ Sumar", "✅ Auditoría", "📊 Totales", "🆚 Comparar"])
+# --- BUSCA ESTA LÍNEA Y REEMPLÁZALA POR ESTA NUEVA ---
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📄 Procesar", "➕ Sumar", "✅ Auditoría", "📊 Totales", "🆚 Comparar", "📦 Control Stock"])
 
 # TAB 1
 with tab1:
@@ -504,5 +506,89 @@ with tab5:
              for k,v in sobra.items(): st.write(f"- {v} x {k}")
         with t3:
              for k,v in dif.items(): st.write(f"**{k}**: {v[0]} -> {v[1]}")
+# --- TAB 6: CONTROL DE STOCK ---
+with tab6:
+    st.header("Generador de Reporte de Stock")
+    
+    col_input, col_output = st.columns([1, 1.5])
+    
+    with col_input:
+        st.subheader("Ingreso de Datos")
+        with st.form("form_stock"):
+            # Fila 1: Identificación
+            c1, c2 = st.columns([1, 2])
+            id_art = c1.text_input("ID Artículo", placeholder="Ej: 75500082")
+            nom_art = c2.text_input("Nombre", placeholder="Ej: ESFERAS MAGICAS...")
+            
+            # Fila 2: Cantidades (Lo más importante)
+            c3, c4 = st.columns(2)
+            st_depo = c3.number_input("Stock DEPO (Real)", step=1, value=0)
+            st_sis = c4.number_input("Stock SISTEMA", step=1, value=0)
+            
+            # Fila 3: Checks (Opcionales / Automáticos)
+            st.divider()
+            check_venta = st.checkbox("Marcado para la venta", value=True)
+            check_corregido = st.checkbox("Incluir: ✅ CORREGIDO", value=True)
+            
+            # Botón de envío
+            submitted = st.form_submit_button("➕ Agregar al Reporte", type="primary")
+            
+            if submitted:
+                # Lógica automática para 'No Coincide'
+                diferencia = st_depo != st_sis
+                
+                nuevo_item = {
+                    "id": id_art,
+                    "nombre": nom_art,
+                    "depo": int(st_depo),
+                    "sistema": int(st_sis),
+                    "no_coincide": diferencia,
+                    "corregido": check_corregido,
+                    "venta": check_venta,
+                    "hora": pd.Timestamp.now().strftime("%H:%M")
+                }
+                st.session_state.stock_report_log.append(nuevo_item)
+                st.toast(f"Artículo '{nom_art}' agregado.")
 
+        # Botón para limpiar si te equivocas
+        if st.button("🗑️ Borrar último ingreso"):
+            if st.session_state.stock_report_log:
+                st.session_state.stock_report_log.pop()
+                st.rerun()
+
+    with col_output:
+        st.subheader("📋 Vista Previa del Reporte")
+        
+        # Generación del Texto Final
+        fecha_hoy = pd.Timestamp.now().strftime("%d-%m-%y")
+        texto_final = f"CONTROL DE STOCK {fecha_hoy}\n"
+        
+        if not st.session_state.stock_report_log:
+            st.info("Agrega artículos en el formulario de la izquierda para generar el texto.")
+        else:
+            # Iterar sobre la lista guardada
+            for i, item in enumerate(st.session_state.stock_report_log, 1):
+                texto_final += f"\n{i}) \n"
+                texto_final += f"Id:\n{item['id']}\n"
+                texto_final += f"Nombre del Articulo:\n{item['nombre']}\n"
+                texto_final += f"STOCK EN DEPO : {item['depo']}\n"
+                texto_final += f"STOCK SISTEMA : {item['sistema']}\n"
+                
+                if item['no_coincide']:
+                    texto_final += "❌ No Coincide \n"
+                
+                if item['corregido']:
+                    texto_final += "✅ CORREGIDO\n"
+                    
+                if item['venta']:
+                    texto_final += "Marcado para la venta\n"
+            
+            # Mostrar el texto para copiar
+            st.text_area("Copia este texto:", value=texto_final, height=600)
+            
+            # Botón para limpiar todo al terminar el día
+            if st.button("🔄 Reiniciar Reporte Diario"):
+                st.session_state.stock_report_log = []
+                st.rerun()
 st.caption("Modo Offline Seguro - v46")
+
