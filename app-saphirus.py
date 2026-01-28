@@ -582,7 +582,7 @@ with tab6:
                     texto_final += "✅ CORREGIDO\n"
                     
                 if item['venta']:
-                    texto_final += "MARCADO PARA LA VENTA\n"S
+                    texto_final += "MARCADO PARA LA VENTA\n"
             
             # Mostrar el texto para copiar
             st.text_area("Copia este texto:", value=texto_final, height=600)
@@ -592,5 +592,6 @@ with tab6:
                 st.session_state.stock_report_log = []
                 st.rerun()
 st.caption("Modo Offline Seguro - v46")
+
 
 
