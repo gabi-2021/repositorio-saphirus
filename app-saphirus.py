@@ -528,8 +528,8 @@ with tab6:
             # Fila 3: Checks (Opcionales / Automáticos)
             st.divider()
             check_venta = st.checkbox("MARCADO PARA LA VENTA", value=True)
-            check_corregido = st.checkbox("INCLUIR: ✅ CORREGIDO", value=True)
-            
+            check_corregido = st.checkbox("CORREGIDO", value=True)
+            check_foto = st.checkbox("FOTO", value=True)
             # Botón de envío
             submitted = st.form_submit_button("➕ Agregar al Reporte", type="primary")
             
@@ -545,6 +545,7 @@ with tab6:
                     "no_coincide": diferencia,
                     "corregido": check_corregido,
                     "venta": check_venta,
+                    "foto": check_foto,
                     "hora": pd.Timestamp.now().strftime("%H:%M")
                 }
                 st.session_state.stock_report_log.append(nuevo_item)
@@ -580,10 +581,16 @@ with tab6:
                     texto_final += "✅ SI COINCIDE \n"
                 if item['corregido']:
                     texto_final += "✅ CORREGIDO\n"
-                    
+                else:
+                    texto_final += "❌ NO CORREGIDO \n"
                 if item['venta']:
-                    texto_final += "MARCADO PARA LA VENTA\n"
-            
+                    texto_final += "✅MARCADO PARA LA VENTA\n"
+                else:
+                    texto_final += "❌NO SE MARCO PARA LA VENTA \n"
+                if item["foto"]:
+                    texto_final += "✅CON FOTO \n"
+                else:
+                    texto_final +="❌SIN FOTO \n"
             # Mostrar el texto para copiar
             st.text_area("Copia este texto:", value=texto_final, height=600)
             
@@ -591,7 +598,8 @@ with tab6:
             if st.button("🔄 Reiniciar Reporte Diario"):
                 st.session_state.stock_report_log = []
                 st.rerun()
-st.caption("Modo Offline Seguro - v46")
+st.caption("Modo Offline Seguro - v47")
+
 
 
 
