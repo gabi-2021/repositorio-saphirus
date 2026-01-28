@@ -8,7 +8,7 @@ import uuid
 
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="Repositor V46", page_icon="⚡", layout="wide")
-st.title("⚡ Repositor V46 (Modo Seguro)")
+st.title("⚡ Repositor V47 (Modo Seguro)")
 
 # --- ESTILOS CSS ---
 st.markdown("""
@@ -572,7 +572,7 @@ with tab6:
                 texto_final += f"\n{i}) \n"
                 texto_final += f"Id:\n{item['id']}\n"
                 texto_final += f"Nombre del Articulo:\n{item['nombre']}\n"
-                texto_final += f"STOCK EN DEPO : {item['depo']}\n"
+                texto_final += f"STOCK REAL : {item['depo']}\n"
                 texto_final += f"STOCK SISTEMA : {item['sistema']}\n"
                 
                 if item['no_coincide']:
@@ -599,7 +599,4 @@ with tab6:
                 st.session_state.stock_report_log = []
                 st.rerun()
 st.caption("Modo Offline Seguro - v47")
-
-
-
 
