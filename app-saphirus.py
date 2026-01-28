@@ -517,18 +517,18 @@ with tab6:
         with st.form("form_stock"):
             # Fila 1: Identificación
             c1, c2 = st.columns([1, 2])
-            id_art = c1.text_input("ID Artículo", placeholder="Ej: 75500082")
-            nom_art = c2.text_input("Nombre", placeholder="Ej: ESFERAS MAGICAS...")
+            id_art = c1.text_input("ID ARTICULO", placeholder="Ej: 75500082")
+            nom_art = c2.text_input("NOMBRE", placeholder="Ej: ESFERAS MAGICAS...")
             
             # Fila 2: Cantidades (Lo más importante)
             c3, c4 = st.columns(2)
-            st_depo = c3.number_input("Stock DEPO (Real)", step=1, value=0)
-            st_sis = c4.number_input("Stock SISTEMA", step=1, value=0)
+            st_depo = c3.number_input("STOCK REAL", step=1, value=0)
+            st_sis = c4.number_input("STOCK SISTEMA", step=1, value=0)
             
             # Fila 3: Checks (Opcionales / Automáticos)
             st.divider()
-            check_venta = st.checkbox("Marcado para la venta", value=True)
-            check_corregido = st.checkbox("Incluir: ✅ CORREGIDO", value=True)
+            check_venta = st.checkbox("MARCADO PARA LA VENTA", value=True)
+            check_corregido = st.checkbox("INCLUIR: ✅ CORREGIDO", value=True)
             
             # Botón de envío
             submitted = st.form_submit_button("➕ Agregar al Reporte", type="primary")
@@ -575,13 +575,14 @@ with tab6:
                 texto_final += f"STOCK SISTEMA : {item['sistema']}\n"
                 
                 if item['no_coincide']:
-                    texto_final += "❌ No Coincide \n"
-                
+                    texto_final += "❌ NO COINCIDE \n"
+                else:
+                    texto_final += "✅ SI COINCIDE \n"
                 if item['corregido']:
                     texto_final += "✅ CORREGIDO\n"
                     
                 if item['venta']:
-                    texto_final += "Marcado para la venta\n"
+                    texto_final += "MARCADO PARA LA VENTA\n"S
             
             # Mostrar el texto para copiar
             st.text_area("Copia este texto:", value=texto_final, height=600)
@@ -591,4 +592,5 @@ with tab6:
                 st.session_state.stock_report_log = []
                 st.rerun()
 st.caption("Modo Offline Seguro - v46")
+
 
