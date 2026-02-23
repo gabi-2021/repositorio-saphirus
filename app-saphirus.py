@@ -7,8 +7,8 @@ import logging
 import uuid
 
 # --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="Repositor V46", page_icon="⚡", layout="wide")
-st.title("⚡ Repositor V47 (Modo Seguro)")
+st.set_page_config(page_title="Repositor V48", page_icon="⚡", layout="wide")
+st.title("⚡ Repositor V48 (Modo Seguro)")
 
 # --- ESTILOS CSS ---
 st.markdown("""
@@ -398,13 +398,16 @@ with tab3:
             
             cats_visibles = 0
             for cat in categorias:
-                # Si está oculta, la saltamos visualmente (pero los datos siguen existiendo)
                 if cat in st.session_state.cats_ocultas:
                     continue
                 
                 cats_visibles += 1
                 df_cat = df_full[df_full['Categoría'] == cat].copy()
                 df_cat.reset_index(drop=True, inplace=True)
+                
+                # Inyectamos una columna temporal para los tildes
+                df_cat.insert(0, "Seleccionar", False)
+                
                 safe_key = f"ed_{re.sub(r'[^a-zA-Z0-9]', '', cat)}"
                 
                 with st.expander(f"📂 {cat} ({len(df_cat)})", expanded=False):
@@ -417,21 +420,16 @@ with tab3:
                     if mc3.button("Reset", key=f"brst_{safe_key}"):
                         actualizar_categoria_masiva(cat, "pdte.")
                     
-                    # BOTÓN DE FINALIZAR/OCULTAR
-                    if mc4.button("🔒 Listo", key=f"hide_{safe_key}", help="Ocultar esta categoría (Mantiene los datos)"):
+                    if mc4.button("🔒 Listo", key=f"hide_{safe_key}", help="Ocultar esta categoría"):
                         ocultar_categoria(cat)
                     
-                    # TABLA EDITABLE (DINÁMICA: Permite borrar filas)
+                    # TABLA EDITABLE CON CHECKBOX
                     edited_df_cat = st.data_editor(
                         df_cat,
                         column_config={
+                            "Seleccionar": st.column_config.CheckboxColumn("✔", width="small"),
                             "_index": None,
-                            "Estado": st.column_config.SelectboxColumn(
-                                "Est",
-                                options=["pdte.", "ped.", "rep."],
-                                required=True,
-                                width="small"
-                            ),
+                            "Estado": st.column_config.SelectboxColumn("Est", options=["pdte.", "ped.", "rep."], required=True, width="small"),
                             "Cantidad": st.column_config.NumberColumn("Cant", min_value=0, width="small"),
                             "Producto": st.column_config.TextColumn("Producto"),
                             "Categoría": None,
@@ -439,19 +437,49 @@ with tab3:
                         },
                         hide_index=True,
                         use_container_width=True,
-                        num_rows="dynamic", # <--- ESTO PERMITE BORRAR FILAS
+                        num_rows="dynamic", 
                         key=safe_key
                     )
                     
-                    if not df_cat.equals(edited_df_cat):
-                        actualizar_datos_categoria(edited_df_cat, cat)
+                    # LÓGICA DE EDICIÓN MULTIPLE (Evita el teclado en el celular)
+                    filas_seleccionadas = edited_df_cat[edited_df_cat["Seleccionar"] == True]
+                    if not filas_seleccionadas.empty:
+                        st.caption("Acción para ítems seleccionados:")
+                        bc1, bc2, bc3 = st.columns([1, 1, 2])
+                        ids_seleccionados = filas_seleccionadas["id"].tolist()
+                        
+                        if bc1.button("📦 Ped.", key=f"mped_{safe_key}", type="primary"):
+                            for item in st.session_state.audit_data:
+                                if item["id"] in ids_seleccionados: item["Estado"] = "ped."
+                            st.rerun()
+                        if bc2.button("✅ Rep.", key=f"mrep_{safe_key}", type="primary"):
+                            for item in st.session_state.audit_data:
+                                if item["id"] in ids_seleccionados: item["Estado"] = "rep."
+                            st.rerun()
+
+                    # Limpiamos la columna 'Seleccionar' antes de guardar los datos reales
+                    df_para_guardar = edited_df_cat.drop(columns=["Seleccionar"])
+                    df_original = df_cat.drop(columns=["Seleccionar"])
+                    
+                    if not df_original.equals(df_para_guardar):
+                        actualizar_datos_categoria(df_para_guardar, cat)
                         st.rerun()
             
-            # Si hay categorías ocultas, mostrar botón para recuperarlas
+            # GESTIÓN SELECTIVA DE CATEGORÍAS OCULTAS
             if len(st.session_state.cats_ocultas) > 0:
-                st.info(f"Hay {len(st.session_state.cats_ocultas)} categorías finalizadas/ocultas.")
-                if st.button("👁️ Mostrar Categorías Ocultas"):
-                    restaurar_todas_categorias()
+                st.divider()
+                st.info(f"Tienes {len(st.session_state.cats_ocultas)} categorías ocultas.")
+                
+                col_sel, col_btn = st.columns([3, 1])
+                with col_sel:
+                    cats_a_restaurar = st.multiselect("Elige cuáles mostrar de nuevo:", list(st.session_state.cats_ocultas))
+                with col_btn:
+                    st.write("") # Espaciador para alinear
+                    st.write("")
+                    if st.button("👁️ Restaurar") and cats_a_restaurar:
+                        for c in cats_a_restaurar:
+                            st.session_state.cats_ocultas.remove(c)
+                        st.rerun()
             
             if cats_visibles == 0 and len(categorias) > 0:
                 st.success("🎉 ¡Todas las categorías han sido revisadas!")
@@ -462,7 +490,6 @@ with tab3:
         with ft1: st.code(formatear_lista_texto(lp, "Pedido Web"))
         with ft2: st.code(formatear_lista_texto(lr, "Repuesto Hoy"))
         with ft3: st.code(formatear_lista_texto(lpen, "Pendientes"))
-
 # TAB 4
 with tab4:
     st.header("Totales")
@@ -598,5 +625,6 @@ with tab6:
             if st.button("🔄 Reiniciar Reporte Diario"):
                 st.session_state.stock_report_log = []
                 st.rerun()
-st.caption("Modo Offline Seguro - v47")
+st.caption("Modo Offline Seguro - v48")
+
 
