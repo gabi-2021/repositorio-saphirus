@@ -347,7 +347,7 @@ with tab2:
     
     col_b1, col_b2 = st.columns(2)
     btn_sumar = col_b1.button("➕ Sumar Listas", use_container_width=True)
-    btn_restar = col_b2.button("➖ Restar (L1 - L2)", use_container_width=True)
+    btn_restar = col_b2.button("➖ Restar Listas", use_container_width=True)
     
     if btn_sumar or btn_restar:
         es_suma = btn_sumar
@@ -686,6 +686,7 @@ with tab6:
                 st.session_state.stock_report_log = []
                 st.rerun()
 st.caption("Modo Offline Seguro - v49")
+
 
 
 
