@@ -7,8 +7,8 @@ import logging
 import uuid
 
 # --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="Repositor V48", page_icon="⚡", layout="wide")
-st.title("⚡ Repositor V48 (Modo Seguro)")
+st.set_page_config(page_title="Repositor V49", page_icon="⚡", layout="wide")
+st.title("⚡ Repositor V49 (Modo Seguro)")
 
 # --- ESTILOS CSS ---
 st.markdown("""
@@ -339,39 +339,99 @@ with tab1:
                  if enviar_whatsapp(msg, credentials): st.success("Enviado")
         else: st.error("Error al leer PDF.")
 
-# TAB 2
+# TAB 2 SUMAR
 with tab2:
-    l1 = st.text_area("Lista 1", height=150, key="sum_l1")
-    l2 = st.text_area("Lista 2", height=150, key="sum_l2")
-    if st.button("Unificar"):
-        def parse_simple(txt):
+    st.header("➕/➖ Operaciones con Listas")
+    l1 = st.text_area("Lista 1 (Base)", height=150, key="sum_l1")
+    l2 = st.text_area("Lista 2 (A sumar/restar)", height=150, key="sum_l2")
+    
+    col_b1, col_b2 = st.columns(2)
+    btn_sumar = col_b1.button("➕ Sumar Listas", use_container_width=True)
+    btn_restar = col_b2.button("➖ Restar (L1 - L2)", use_container_width=True)
+    
+    if btn_sumar or btn_restar:
+        es_suma = btn_sumar
+        
+        def parse_complex(txt):
             d = {}
             cat = "General"
-            for line in txt.split('\n'):
-                line = line.strip()
-                if "==" in line: cat = line.replace("==", "").strip()
-                elif " x " in line:
-                    p = line.split(" x ", 1)
-                    try:
-                        c = float(p[0]); prod = p[1]
-                        if cat not in d: d[cat] = {}
-                        d[cat][prod] = d[cat].get(prod, 0) + c
-                    except: pass
-            return d
-        d1 = parse_simple(l1); d2 = parse_simple(l2)
-        total = d1.copy()
-        for c, prods in d2.items():
-            if c not in total: total[c] = {}
-            for p, qty in prods.items():
-                total[c][p] = total[c].get(p, 0) + qty
-        txt_fin = "📋 *LISTA SUMADA*\n"
-        for c in sorted(total.keys()):
-            txt_fin += f"\n== {c} ==\n"
-            for p in sorted(total[c].keys()):
-                q = total[c][p]; q_fmt = int(q) if q.is_integer() else q
-                txt_fin += f"{q_fmt} x {p}\n"
-        st.code(txt_fin)
+            titulo = ""
+            titulo_original = ""
+            lineas = txt.split('\n')
+            
+            # Intentar extraer el título de la primera línea no vacía
+            for linea in lineas:
+                if linea.strip():
+                    # Si no es categoría ni producto, asumimos que es título
+                    if not linea.strip().startswith("==") and " x " not in linea.lower():
+                        titulo = re.sub(r'[^\w\s]', '', linea).strip().upper()
+                        titulo_original = linea.strip()
+                    break
+            
+            if not titulo:
+                titulo = "SIN TITULO"
+                    
+            for linea in lineas:
+                linea = linea.strip()
+                if "==" in linea: 
+                    cat = linea.replace("==", "").strip()
+                elif " x " in linea.lower() or " X " in linea.upper():
+                    # Separar por la x sin importar mayúsculas
+                    if " x " in linea:
+                        p = linea.split(" x ", 1)
+                    else:
+                        p = linea.split(" X ", 1)
+                        
+                    if len(p) == 2:
+                        try:
+                            c = float(p[0])
+                            prod = p[1].strip()
+                            if cat not in d: d[cat] = {}
+                            d[cat][prod] = d[cat].get(prod, 0) + c
+                        except: pass
+            return d, titulo, titulo_original
 
+        d1, tit1, original_tit1 = parse_complex(l1)
+        d2, tit2, original_tit2 = parse_complex(l2)
+        
+        # Lógica para definir el título final
+        if tit1 and tit1 == tit2 and tit1 != "SIN TITULO":
+            # Si coinciden (ej. ambas son "PEDIDO WEB"), conserva el título con emojis y formato
+            titulo_final = original_tit1
+        else:
+            # Si son distintas o no tienen título claro, usamos uno genérico
+            titulo_final = "📋 *LISTA SUMADA*" if es_suma else "📋 *LISTA RESTADA*"
+            
+        total = {}
+        # Primero copiar L1 completa
+        for c, prods in d1.items():
+            total[c] = prods.copy()
+            
+        # Luego operar con L2
+        for c, prods in d2.items():
+            if c not in total: 
+                total[c] = {}
+            for p, qty in prods.items():
+                if es_suma:
+                    total[c][p] = total[c].get(p, 0) + qty
+                else:
+                    total[c][p] = total[c].get(p, 0) - qty
+        
+        # Generar texto final
+        txt_fin = f"{titulo_final}\n"
+        for c in sorted(total.keys()):
+            # IMPORTANTE: Filtrar para que solo queden productos con cantidad mayor a 0
+            items_validos = {p: q for p, q in total[c].items() if q > 0}
+            
+            # Solo agregar la categoría si le quedaron productos
+            if items_validos:
+                txt_fin += f"\n== {c} ==\n"
+                for p in sorted(items_validos.keys()):
+                    q = items_validos[p]
+                    q_fmt = int(q) if q.is_integer() else q
+                    txt_fin += f"{q_fmt} x {p}\n"
+                    
+        st.code(txt_fin)
 # TAB 3: AUDITORÍA
 with tab3:
     st.header("🕵️ Auditoría")
@@ -625,6 +685,7 @@ with tab6:
             if st.button("🔄 Reiniciar Reporte Diario"):
                 st.session_state.stock_report_log = []
                 st.rerun()
-st.caption("Modo Offline Seguro - v48")
+st.caption("Modo Offline Seguro - v49")
+
 
 
